@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Colonist - Catan Clone</title>
+  <style>
+    body {
+      background-color: #1a1a2e;
+      color: #eaeaea;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    h1 {
+      font-size: 2.5rem;
+      color: #e0a352;
+    }
+  </style>
+</head>
+<body>
+  <h1>Colonist - Catan Clone</h1>
+
+  <!-- Socket.io client library: the server provides this automatically -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    // Connect this browser to the server
+    const socket = io();
+
+    socket.on('connect', () => {
+      console.log('connected to server');
+    });
+  </script>
+</body>
+</html>
