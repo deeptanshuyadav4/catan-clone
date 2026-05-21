@@ -159,5 +159,43 @@ window.Render = (() => {
     });
   }
 
-  return { renderBoard, attachClickHandlers };
+  // Overlays the vertex-and-edge graph on top of the board for visual verification.
+  // Everything is placed in a single <g id="graph-debug"> group so the caller can
+  // show/hide the whole overlay just by toggling that group's display style.
+  // Safe to call multiple times — removes the previous group before drawing a new one.
+  function drawGraphDebug(svgElement, board) {
+    const existing = svgElement.querySelector('#graph-debug');
+    if (existing) existing.remove();
+
+    const { graph } = board;
+    if (!graph) return;
+
+    const g = el('g', { id: 'graph-debug' });
+
+    // Edges first so vertex circles paint on top and remain easy to see
+    for (const edge of graph.edges) {
+      g.appendChild(el('line', {
+        x1: edge.x1, y1: edge.y1,
+        x2: edge.x2, y2: edge.y2,
+        stroke:           'rgba(0, 0, 0, 0.25)',
+        'stroke-width':   1.5,
+      }));
+    }
+
+    // Vertices — one small circle per unique corner point
+    for (const vertex of graph.vertices) {
+      g.appendChild(el('circle', {
+        cx:             vertex.x,
+        cy:             vertex.y,
+        r:              4,
+        fill:           'rgba(255, 255, 255, 0.6)',
+        stroke:         '#1a1a1a',
+        'stroke-width': 1,
+      }));
+    }
+
+    svgElement.appendChild(g);
+  }
+
+  return { renderBoard, attachClickHandlers, drawGraphDebug };
 })();

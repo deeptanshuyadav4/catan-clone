@@ -88,6 +88,7 @@
   <div class="btn-row">
     <button id="regenerate-btn">Regenerate</button>
     <button id="balanced-btn">Balanced</button>
+    <button id="toggle-graph-btn">Toggle Graph</button>
   </div>
   <div id="seed-label"></div>
 
@@ -123,12 +124,23 @@
 
       // ----- Board state -----
       let board;
+      let graphVisible = true;  // graph overlay is shown by default for verification
 
-      // Draw board and attach fresh click handlers (called after every board change)
+      // Applies the current graphVisible state to the debug group in the SVG.
+      // Called after every render and after the toggle button is pressed.
+      function applyGraphVisibility() {
+        const g = svg.querySelector('#graph-debug');
+        if (g) g.style.display = graphVisible ? '' : 'none';
+      }
+
+      // Draw board, overlay graph, attach fresh click handlers.
+      // Called after every board change (initial load, Regenerate, Balanced).
       function renderAndWire(b) {
         board = b;
         Render.renderBoard(svg, board);
         Render.attachClickHandlers(svg, board, onTileClick);
+        Render.drawGraphDebug(svg, board);
+        applyGraphVisibility();
         seedLabel.textContent = `Seed: ${board.seed}`;
       }
 
@@ -146,6 +158,8 @@
         board.robber = idx;
         Render.renderBoard(svg, board);
         Render.attachClickHandlers(svg, board, onTileClick);
+        Render.drawGraphDebug(svg, board);
+        applyGraphVisibility();
 
         const resource = RESOURCE[type];
         const prob     = PROB[number] || 0;
@@ -166,6 +180,11 @@
       }
 
       // ----- Button handlers -----
+      document.getElementById('toggle-graph-btn').addEventListener('click', () => {
+        graphVisible = !graphVisible;
+        applyGraphVisibility();
+      });
+
       document.getElementById('regenerate-btn').addEventListener('click', () => {
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
         renderAndWire(Board.generateBoard());
