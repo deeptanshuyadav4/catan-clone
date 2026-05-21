@@ -3,36 +3,187 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Colonist - Catan Clone</title>
+  <title>Catan Clone</title>
+
+  <!-- board.js and render.js are deferred: they download in parallel,
+       then execute in order after all HTML is parsed, before DOMContentLoaded. -->
+  <script src="board.js" defer></script>
+  <script src="render.js" defer></script>
+
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background-color: #1a1a2e;
-      color: #eaeaea;
+      background: #2b8fd6;
+      min-height: 100vh;
+      padding: 24px 16px 40px;
       font-family: Arial, sans-serif;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
-      height: 100vh;
-      margin: 0;
+      gap: 12px;
     }
+
     h1 {
-      font-size: 2.5rem;
-      color: #e0a352;
+      color: #ffffff;
+      font-size: 2rem;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      letter-spacing: 1px;
+    }
+
+    #info-bar {
+      color: #ffffff;
+      font-size: 0.85rem;
+      opacity: 0.9;
+      min-height: 1.3em; /* keeps layout stable when text changes */
+      text-align: center;
+    }
+
+    /* The SVG fills this container; viewBox="0 0 800 800" is set by renderBoard */
+    #board {
+      width: 100%;
+      max-width: 700px;
+      height: auto;
+      background: #2b8fd6;        /* ocean blue shows through gaps around hex grid */
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      background: #ffffff;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 24px;
+      padding: 10px 28px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    button:hover  { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(0,0,0,0.3); }
+    button:active { transform: translateY(0);    box-shadow: 0 2px  6px rgba(0,0,0,0.2); }
+
+    #seed-label {
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 0.72rem;
+      font-family: monospace;
     }
   </style>
 </head>
 <body>
-  <h1>Colonist - Catan Clone</h1>
 
-  <!-- Socket.io client library: the server provides this automatically -->
+  <h1>Catan Clone</h1>
+  <p id="info-bar">Click a tile to inspect it or move the robber</p>
+
+  <svg id="board"></svg>
+
+  <div class="btn-row">
+    <button id="regenerate-btn">Regenerate</button>
+    <button id="balanced-btn">Balanced</button>
+  </div>
+  <div id="seed-label"></div>
+
+  <!-- Socket.io client — served automatically by the server at this URL -->
   <script src="/socket.io/socket.io.js"></script>
 
   <script>
-    // Connect this browser to the server
+    // Socket.io connection: runs immediately (doesn't need the DOM or other scripts)
     const socket = io();
+    socket.on('connect', () => console.log('connected to server'));
 
-    socket.on('connect', () => {
-      console.log('connected to server');
+    // Everything that uses Board / Render must wait until DOMContentLoaded,
+    // because deferred scripts (board.js, render.js) finish executing just before
+    // that event fires — so window.Board and window.Render are guaranteed to exist here.
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // ----- Element refs -----
+      const svg       = document.getElementById('board');
+      const infoBar   = document.getElementById('info-bar');
+      const seedLabel = document.getElementById('seed-label');
+
+      // ----- Lookup tables -----
+      const RESOURCE = {
+        forest:    'Wood',
+        pasture:   'Wool',
+        fields:    'Wheat',
+        hills:     'Brick',
+        mountains: 'Ore',
+        desert:    null,
+      };
+      // Number → how many ways out of 36 to roll it
+      const PROB = { 2:1, 3:2, 4:3, 5:4, 6:5, 8:5, 9:4, 10:3, 11:2, 12:1 };
+
+      // ----- Board state -----
+      let board;
+
+      // Draw board and attach fresh click handlers (called after every board change)
+      function renderAndWire(b) {
+        board = b;
+        Render.renderBoard(svg, board);
+        Render.attachClickHandlers(svg, board, onTileClick);
+        seedLabel.textContent = `Seed: ${board.seed}`;
+      }
+
+      // Called when the player clicks a hex tile
+      function onTileClick(idx) {
+        const type   = board.tiles[idx];
+        const number = board.numbers[idx]; // undefined for desert
+
+        if (type === 'desert') {
+          infoBar.textContent = 'Desert — produces nothing, robber lives here';
+          return;
+        }
+
+        // Move the robber to the clicked tile and re-render
+        board.robber = idx;
+        Render.renderBoard(svg, board);
+        Render.attachClickHandlers(svg, board, onTileClick);
+
+        const resource = RESOURCE[type];
+        const prob     = PROB[number] || 0;
+        const label    = type.charAt(0).toUpperCase() + type.slice(1);
+        infoBar.textContent =
+          `${label} → ${resource} · rolls on ${number} · ${prob}/36 odds`;
+      }
+
+      // Returns true when no two 6/8 tiles share an edge
+      function isBalanced(b) {
+        for (let i = 0; i < b.tiles.length; i++) {
+          if (b.numbers[i] !== 6 && b.numbers[i] !== 8) continue;
+          for (const n of Board.getNeighbors(i, b.positions)) {
+            if (b.numbers[n] === 6 || b.numbers[n] === 8) return false;
+          }
+        }
+        return true;
+      }
+
+      // ----- Button handlers -----
+      document.getElementById('regenerate-btn').addEventListener('click', () => {
+        infoBar.textContent = 'Click a tile to inspect it or move the robber';
+        renderAndWire(Board.generateBoard());
+      });
+
+      document.getElementById('balanced-btn').addEventListener('click', () => {
+        // Try up to 200 boards; use the last one regardless if none are balanced
+        let b = Board.generateBoard();
+        for (let attempt = 0; attempt < 199; attempt++) {
+          if (isBalanced(b)) break;
+          b = Board.generateBoard();
+        }
+        infoBar.textContent = 'Click a tile to inspect it or move the robber';
+        renderAndWire(b);
+      });
+
+      // ----- Initial render -----
+      renderAndWire(Board.generateBoard());
     });
   </script>
 </body>
