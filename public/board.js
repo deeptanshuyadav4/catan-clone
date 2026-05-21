@@ -190,8 +190,9 @@ window.Board = (() => {
   // have vertex/edge data alongside tiles and numbers without a separate call.
   const _generateBoard = generateBoard;
   function generateBoardWithGraph(seed) {
-    const board = _generateBoard(seed);
+    const board  = _generateBoard(seed);
     board.graph  = computeGraph(board.positions);
+    board.pieces = { settlements: {}, cities: {}, roads: {} };
     return board;
   }
 

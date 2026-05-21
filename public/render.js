@@ -197,5 +197,127 @@ window.Render = (() => {
     svgElement.appendChild(g);
   }
 
-  return { renderBoard, attachClickHandlers, drawGraphDebug };
+  // Draws all placed roads, settlements, and cities into a <g id="pieces-layer">.
+  // Inserts the group below the transparent click-handler groups so hover areas
+  // stay on top and don't get buried under piece shapes.
+  // Safe to call after every piece placement — removes and replaces the old group.
+  function drawPieces(svgElement, board, playerColors) {
+    const existing = svgElement.querySelector('#pieces-layer');
+    if (existing) existing.remove();
+
+    const g = el('g', { id: 'pieces-layer' });
+    const { graph, pieces } = board;
+
+    // Roads first — drawn lowest so settlements/cities paint on top at junctions
+    for (const [eIdxStr, playerId] of Object.entries(pieces.roads)) {
+      const edge  = graph.edges[parseInt(eIdxStr, 10)];
+      const mx    = (edge.x1 + edge.x2) / 2;
+      const my    = (edge.y1 + edge.y2) / 2;
+      const len   = Math.sqrt((edge.x2 - edge.x1) ** 2 + (edge.y2 - edge.y1) ** 2);
+      const angle = Math.atan2(edge.y2 - edge.y1, edge.x2 - edge.x1) * 180 / Math.PI;
+      g.appendChild(el('rect', {
+        x: mx - len / 2, y: my - 5, width: len, height: 10, rx: 3,
+        fill:           playerColors[playerId] || '#888',
+        stroke:         '#1a1a1a',
+        'stroke-width': 1.5,
+        transform:      `rotate(${angle},${mx},${my})`,
+      }));
+    }
+
+    // Settlements — 5-point polygon: triangular roof + rectangular base, 18×20px
+    for (const [vIdxStr, playerId] of Object.entries(pieces.settlements)) {
+      const { x: vx, y: vy } = graph.vertices[parseInt(vIdxStr, 10)];
+      g.appendChild(el('polygon', {
+        points: [
+          `${vx},${vy - 10}`,        // roof peak
+          `${vx + 9},${vy - 2}`,     // right eave
+          `${vx + 9},${vy + 10}`,    // bottom-right
+          `${vx - 9},${vy + 10}`,    // bottom-left
+          `${vx - 9},${vy - 2}`,     // left eave
+        ].join(' '),
+        fill:              playerColors[playerId] || '#888',
+        stroke:            '#1a1a1a',
+        'stroke-width':    1.5,
+        'stroke-linejoin': 'round',
+      }));
+    }
+
+    // Cities — 12-point castle silhouette: 3 merlons atop a wide base, 24×26px
+    for (const [vIdxStr, playerId] of Object.entries(pieces.cities)) {
+      const { x: vx, y: vy } = graph.vertices[parseInt(vIdxStr, 10)];
+      g.appendChild(el('polygon', {
+        points: [
+          `${vx - 12},${vy - 13}`,   // left merlon  top-left
+          `${vx - 6},${vy - 13}`,    // left merlon  top-right
+          `${vx - 6},${vy - 5}`,     // first gap    floor-left
+          `${vx - 3},${vy - 5}`,     // first gap    floor-right
+          `${vx - 3},${vy - 13}`,    // middle merlon top-left
+          `${vx + 3},${vy - 13}`,    // middle merlon top-right
+          `${vx + 3},${vy - 5}`,     // second gap   floor-left
+          `${vx + 6},${vy - 5}`,     // second gap   floor-right
+          `${vx + 6},${vy - 13}`,    // right merlon top-left
+          `${vx + 12},${vy - 13}`,   // right merlon top-right
+          `${vx + 12},${vy + 13}`,   // bottom-right
+          `${vx - 12},${vy + 13}`,   // bottom-left
+        ].join(' '),
+        fill:              playerColors[playerId] || '#888',
+        stroke:            '#1a1a1a',
+        'stroke-width':    1.5,
+        'stroke-linejoin': 'round',
+      }));
+    }
+
+    // Keep pieces below the transparent click-handler layers
+    const vHandlers = svgElement.querySelector('#vertex-handlers');
+    if (vHandlers) svgElement.insertBefore(g, vHandlers);
+    else           svgElement.appendChild(g);
+  }
+
+  // Transparent circles at every vertex (radius 12). Larger than the debug dots
+  // so they are easy to click. Show a white highlight on hover.
+  // stroke="rgba(0,0,0,0)" keeps a transparent stroke that still hit-tests.
+  function attachVertexClickHandlers(svgElement, board, onVertexClick) {
+    const existing = svgElement.querySelector('#vertex-handlers');
+    if (existing) existing.remove();
+
+    const g = el('g', { id: 'vertex-handlers' });
+    board.graph.vertices.forEach((vertex, vIdx) => {
+      const c = el('circle', {
+        cx: vertex.x, cy: vertex.y, r: 12,
+        fill:  'rgba(0,0,0,0)',
+        style: 'cursor:pointer',
+      });
+      c.addEventListener('mouseenter', () => c.setAttribute('fill', 'rgba(255,255,255,0.4)'));
+      c.addEventListener('mouseleave', () => c.setAttribute('fill', 'rgba(0,0,0,0)'));
+      c.addEventListener('click', (e) => { e.stopPropagation(); onVertexClick(vIdx); });
+      g.appendChild(c);
+    });
+    svgElement.appendChild(g);
+  }
+
+  // Transparent thick lines along every edge (stroke-width 14).
+  // stroke="rgba(0,0,0,0)" is transparent but still receives pointer events,
+  // unlike stroke="none" which disables hit-testing entirely.
+  function attachEdgeClickHandlers(svgElement, board, onEdgeClick) {
+    const existing = svgElement.querySelector('#edge-handlers');
+    if (existing) existing.remove();
+
+    const g = el('g', { id: 'edge-handlers' });
+    board.graph.edges.forEach((edge, eIdx) => {
+      const line = el('line', {
+        x1: edge.x1, y1: edge.y1, x2: edge.x2, y2: edge.y2,
+        stroke:           'rgba(0,0,0,0)',
+        'stroke-width':   14,
+        'stroke-linecap': 'round',
+        style:            'cursor:pointer',
+      });
+      line.addEventListener('mouseenter', () => line.setAttribute('stroke', 'rgba(255,255,255,0.5)'));
+      line.addEventListener('mouseleave', () => line.setAttribute('stroke', 'rgba(0,0,0,0)'));
+      line.addEventListener('click', (e) => { e.stopPropagation(); onEdgeClick(eIdx); });
+      g.appendChild(line);
+    });
+    svgElement.appendChild(g);
+  }
+
+  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers };
 })();

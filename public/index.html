@@ -76,12 +76,85 @@
       font-size: 0.72rem;
       font-family: monospace;
     }
+
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 16px;
+      padding: 10px 20px;
+      width: 100%;
+      max-width: 700px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-label {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+    /* Player color circles — override the general button pill shape */
+    .player-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      padding: 0;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+    .player-btn.active {
+      border: 3px solid #000;
+      outline: 2px solid white;
+      outline-offset: 1px;
+    }
+    .player-btn:hover, .player-btn:active { transform: none; }
+    /* Mode buttons — pill-shaped but smaller and subtler than the board buttons */
+    .mode-btn {
+      background: rgba(255, 255, 255, 0.18);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: bold;
+      box-shadow: none;
+    }
+    .mode-btn.active {
+      background: white;
+      color: #1a1a2e;
+      border-color: white;
+    }
+    .mode-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.32); box-shadow: none; }
+    .mode-btn:hover, .mode-btn:active { transform: none; }
   </style>
 </head>
 <body>
 
   <h1>Catan Clone</h1>
   <p id="info-bar">Click a tile to inspect it or move the robber</p>
+
+  <div id="controls">
+    <div class="control-group">
+      <span class="control-label">Player</span>
+      <button class="player-btn active" data-player="red"    style="background:#d33" title="Red"></button>
+      <button class="player-btn"        data-player="blue"   style="background:#36c" title="Blue"></button>
+      <button class="player-btn"        data-player="white"  style="background:#eee" title="White"></button>
+      <button class="player-btn"        data-player="orange" style="background:#f80" title="Orange"></button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Mode</span>
+      <button class="mode-btn active" data-mode="settlement">Settlement</button>
+      <button class="mode-btn"        data-mode="city">City</button>
+      <button class="mode-btn"        data-mode="road">Road</button>
+    </div>
+    <button id="clear-pieces-btn">Clear Pieces</button>
+  </div>
 
   <svg id="board"></svg>
 
@@ -124,7 +197,11 @@
 
       // ----- Board state -----
       let board;
-      let graphVisible = true;  // graph overlay is shown by default for verification
+      let graphVisible = false;  // hidden by default now that pieces are visible
+
+      const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
+      let currentPlayer = 'red';
+      let currentMode   = 'settlement';
 
       // Applies the current graphVisible state to the debug group in the SVG.
       // Called after every render and after the toggle button is pressed.
@@ -133,14 +210,17 @@
         if (g) g.style.display = graphVisible ? '' : 'none';
       }
 
-      // Draw board, overlay graph, attach fresh click handlers.
-      // Called after every board change (initial load, Regenerate, Balanced).
+      // Full re-render: wipes the SVG and rebuilds all layers in z-order.
+      // Called after every board change (initial load, Regenerate, Balanced, robber move).
       function renderAndWire(b) {
         board = b;
-        Render.renderBoard(svg, board);
-        Render.attachClickHandlers(svg, board, onTileClick);
-        Render.drawGraphDebug(svg, board);
+        Render.renderBoard(svg, board);                                // tiles + tokens + robber
+        Render.attachClickHandlers(svg, board, onTileClick);           // tile click handlers
+        Render.drawGraphDebug(svg, board);                             // debug overlay
         applyGraphVisibility();
+        Render.drawPieces(svg, board, PLAYER_COLORS);                  // settlement/city/road shapes
+        Render.attachVertexClickHandlers(svg, board, onVertexClick);   // transparent vertex hit areas
+        Render.attachEdgeClickHandlers(svg, board, onEdgeClick);       // transparent edge hit areas
         seedLabel.textContent = `Seed: ${board.seed}`;
       }
 
@@ -154,18 +234,28 @@
           return;
         }
 
-        // Move the robber to the clicked tile and re-render
+        // Move the robber and do a full re-render so all layers stay consistent
         board.robber = idx;
-        Render.renderBoard(svg, board);
-        Render.attachClickHandlers(svg, board, onTileClick);
-        Render.drawGraphDebug(svg, board);
-        applyGraphVisibility();
+        renderAndWire(board);
 
         const resource = RESOURCE[type];
         const prob     = PROB[number] || 0;
         const label    = type.charAt(0).toUpperCase() + type.slice(1);
         infoBar.textContent =
           `${label} → ${resource} · rolls on ${number} · ${prob}/36 odds`;
+      }
+
+      // Vertex click: place a settlement or city at that corner
+      function onVertexClick(vIdx) {
+        if (currentMode === 'settlement') board.pieces.settlements[vIdx] = currentPlayer;
+        else if (currentMode === 'city')  board.pieces.cities[vIdx]      = currentPlayer;
+        Render.drawPieces(svg, board, PLAYER_COLORS);
+      }
+
+      // Edge click: place a road along that hex side
+      function onEdgeClick(eIdx) {
+        if (currentMode === 'road') board.pieces.roads[eIdx] = currentPlayer;
+        Render.drawPieces(svg, board, PLAYER_COLORS);
       }
 
       // Returns true when no two 6/8 tiles share an edge
@@ -183,6 +273,27 @@
       document.getElementById('toggle-graph-btn').addEventListener('click', () => {
         graphVisible = !graphVisible;
         applyGraphVisibility();
+      });
+
+      document.querySelectorAll('.player-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.player-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentPlayer = btn.dataset.player;
+        });
+      });
+
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentMode = btn.dataset.mode;
+        });
+      });
+
+      document.getElementById('clear-pieces-btn').addEventListener('click', () => {
+        board.pieces = { settlements: {}, cities: {}, roads: {} };
+        Render.drawPieces(svg, board, PLAYER_COLORS);
       });
 
       document.getElementById('regenerate-btn').addEventListener('click', () => {
