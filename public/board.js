@@ -111,5 +111,89 @@ window.Board = (() => {
     return neighbors;
   }
 
-  return { generateBoard, getNeighbors };
+  // Derives the full vertex-and-edge graph from the array of hex centers.
+  //
+  // A "vertex" is a corner point where up to 3 hexes meet — this is where
+  // players place settlements and cities in Catan.
+  // An "edge" is one side of a hex — this is where players place roads.
+  //
+  // Because adjacent hexes share corners and sides, we deduplicate both
+  // using string keys so each physical point / segment appears only once.
+  function computeGraph(positions) {
+    const vertexMap = new Map();  // "x.xx,y.xx" → vertex index
+    const vertices  = [];         // [{x, y, tiles:[tileIdx,...]}, ...]
+    const edgeMap   = new Map();  // "minV-maxV" → edge index
+    const edges     = [];         // [{x1,y1,x2,y2, vertexA,vertexB, tiles:[...]}, ...]
+    const vertexAdjacency = {};   // vIdx → [vIdx, ...]  (vertices linked by an edge)
+    const vertexEdges     = {};   // vIdx → [eIdx, ...]  (edges that touch this vertex)
+
+    // Look up or create a vertex at (px, py); add tileIdx to its tile list.
+    function getOrAddVertex(px, py, tileIdx) {
+      const key = `${px.toFixed(2)},${py.toFixed(2)}`;
+      if (!vertexMap.has(key)) {
+        vertexMap.set(key, vertices.length);
+        vertices.push({ x: px, y: py, tiles: [] });
+      }
+      const vIdx = vertexMap.get(key);
+      if (!vertices[vIdx].tiles.includes(tileIdx)) vertices[vIdx].tiles.push(tileIdx);
+      return vIdx;
+    }
+
+    for (let tileIdx = 0; tileIdx < positions.length; tileIdx++) {
+      const { x: cx, y: cy } = positions[tileIdx];
+
+      // Compute the 6 corner vertex indices for this hex (same angles as render.js)
+      const corners = [];
+      for (let i = 0; i < 6; i++) {
+        const rad = (Math.PI / 180) * (60 * i + 30);
+        const px  = cx + HEX_SIZE * Math.cos(rad);
+        const py  = cy + HEX_SIZE * Math.sin(rad);
+        corners.push(getOrAddVertex(px, py, tileIdx));
+      }
+
+      // Each hex side connects corner[i] → corner[(i+1) % 6]
+      for (let i = 0; i < 6; i++) {
+        const vA     = corners[i];
+        const vB     = corners[(i + 1) % 6];
+        const eKey   = `${Math.min(vA, vB)}-${Math.max(vA, vB)}`;
+
+        if (!edgeMap.has(eKey)) {
+          const eIdx = edges.length;
+          edgeMap.set(eKey, eIdx);
+          edges.push({
+            x1: vertices[vA].x, y1: vertices[vA].y,
+            x2: vertices[vB].x, y2: vertices[vB].y,
+            vertexA: vA, vertexB: vB,
+            tiles: [],
+          });
+          // Wire up adjacency and edge-membership for both endpoints
+          if (!vertexAdjacency[vA]) vertexAdjacency[vA] = [];
+          if (!vertexAdjacency[vB]) vertexAdjacency[vB] = [];
+          if (!vertexEdges[vA])     vertexEdges[vA]     = [];
+          if (!vertexEdges[vB])     vertexEdges[vB]     = [];
+          vertexAdjacency[vA].push(vB);
+          vertexAdjacency[vB].push(vA);
+          vertexEdges[vA].push(eIdx);
+          vertexEdges[vB].push(eIdx);
+        }
+
+        // Every hex that borders this edge adds itself to the tile list (max 2)
+        const eIdx = edgeMap.get(eKey);
+        if (!edges[eIdx].tiles.includes(tileIdx)) edges[eIdx].tiles.push(tileIdx);
+      }
+    }
+
+    return { vertices, edges, vertexAdjacency, vertexEdges };
+  }
+
+  // Augment generateBoard to include the pre-computed graph so callers always
+  // have vertex/edge data alongside tiles and numbers without a separate call.
+  const _generateBoard = generateBoard;
+  function generateBoardWithGraph(seed) {
+    const board = _generateBoard(seed);
+    board.graph  = computeGraph(board.positions);
+    return board;
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph };
 })();
