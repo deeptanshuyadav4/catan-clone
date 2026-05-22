@@ -51,6 +51,79 @@ window.Render = (() => {
     return poly;
   }
 
+  // Small decorative illustration for each tile type, centered in the upper portion of the hex.
+  // pointer-events="none" so it never interferes with tile, vertex, or edge click handlers.
+  function drawTileIcon(svgElement, pos, tileType) {
+    const ix = pos.x;
+    const iy = pos.y - 14;
+    const g  = el('g', { 'pointer-events': 'none' });
+
+    if (tileType === 'forest') {
+      // Triangular canopy + brown trunk
+      g.appendChild(el('polygon', {
+        points: `${ix},${iy - 14} ${ix - 12},${iy + 4} ${ix + 12},${iy + 4}`,
+        fill: '#2d5a1a', stroke: '#1a3a0a', 'stroke-width': 1,
+      }));
+      g.appendChild(el('rect', {
+        x: ix - 2.5, y: iy + 4, width: 5, height: 7, rx: 1, fill: '#5a3a1a',
+      }));
+
+    } else if (tileType === 'hills') {
+      // Pyramid stack of 3 bricks
+      g.appendChild(el('rect', { x: ix - 10, y: iy + 2,  width: 20, height: 6, rx: 1, fill: '#8a2a1a', stroke: '#4a1010', 'stroke-width': 1 }));
+      g.appendChild(el('rect', { x: ix - 7,  y: iy - 5,  width: 14, height: 6, rx: 1, fill: '#8a2a1a', stroke: '#4a1010', 'stroke-width': 1 }));
+      g.appendChild(el('rect', { x: ix - 4,  y: iy - 12, width:  8, height: 6, rx: 1, fill: '#8a2a1a', stroke: '#4a1010', 'stroke-width': 1 }));
+
+    } else if (tileType === 'pasture') {
+      // Four legs first so body paints on top
+      [ix - 8, ix - 3, ix + 2, ix + 6].forEach(lx =>
+        g.appendChild(el('rect', { x: lx, y: iy + 5, width: 2, height: 6, rx: 1, fill: '#666' }))
+      );
+      // Rounded-rect body + head + eye
+      g.appendChild(el('rect', {
+        x: ix - 11, y: iy - 4, width: 22, height: 10, rx: 5,
+        fill: 'white', stroke: '#444', 'stroke-width': 1,
+      }));
+      g.appendChild(el('circle', { cx: ix + 13, cy: iy - 5, r: 4, fill: '#ddd', stroke: '#444', 'stroke-width': 1 }));
+      g.appendChild(el('circle', { cx: ix + 14, cy: iy - 6, r: 0.8, fill: '#333' }));
+
+    } else if (tileType === 'fields') {
+      // Binding band at mid-shaft
+      g.appendChild(el('rect', { x: ix - 8, y: iy + 2, width: 16, height: 3, rx: 1, fill: '#8a5a14' }));
+      // Three stems (binding band paints over their mid-points, looks bundled)
+      [{ x: ix - 7, y: iy - 2, h: 8 }, { x: ix - 1, y: iy - 7, h: 13 }, { x: ix + 5, y: iy - 2, h: 8 }].forEach(s =>
+        g.appendChild(el('rect', { x: s.x, y: s.y, width: 2, height: s.h, fill: '#8a5a14' }))
+      );
+      // Grain heads
+      [{ cx: ix - 6, cy: iy - 5, ry: 4 }, { cx: ix, cy: iy - 11, ry: 5 }, { cx: ix + 6, cy: iy - 5, ry: 4 }].forEach(e =>
+        g.appendChild(el('ellipse', { cx: e.cx, cy: e.cy, rx: 2.5, ry: e.ry, fill: '#d4a614' }))
+      );
+
+    } else if (tileType === 'mountains') {
+      // Back peak (lighter), front peak (darker), snow cap
+      g.appendChild(el('polygon', {
+        points: `${ix + 2},${iy + 8} ${ix + 14},${iy + 8} ${ix + 8},${iy - 4}`,
+        fill: '#666', stroke: '#444', 'stroke-width': 1,
+      }));
+      g.appendChild(el('polygon', {
+        points: `${ix - 14},${iy + 8} ${ix + 2},${iy + 8} ${ix - 6},${iy - 10}`,
+        fill: '#4a4a4a', stroke: '#222', 'stroke-width': 1,
+      }));
+      g.appendChild(el('polygon', {
+        points: `${ix - 10},${iy - 3} ${ix - 6},${iy - 10} ${ix - 2},${iy - 3}`,
+        fill: 'white',
+      }));
+
+    } else if (tileType === 'desert') {
+      // Arm parts first so trunk paints over the joints cleanly
+      g.appendChild(el('rect', { x: ix - 12, y: iy - 14, width: 4, height: 12, rx: 2, fill: '#4a7a2a', stroke: '#2a4a1a', 'stroke-width': 1 }));
+      g.appendChild(el('rect', { x: ix - 11, y: iy - 6,  width: 9, height: 4,  rx: 2, fill: '#4a7a2a', stroke: '#2a4a1a', 'stroke-width': 1 }));
+      g.appendChild(el('rect', { x: ix - 3,  y: iy - 14, width: 6, height: 22, rx: 3, fill: '#4a7a2a', stroke: '#2a4a1a', 'stroke-width': 1 }));
+    }
+
+    svgElement.appendChild(g);
+  }
+
   // Draw the white circle + number + probability dots for non-desert tiles.
   function drawNumberToken(svg, pos, number) {
     const cx  = pos.x;
@@ -140,12 +213,17 @@ window.Render = (() => {
       drawTile(svgElement, positions[i], tiles[i], i);
     }
 
-    // 2. Draw number tokens on top of tiles (middle layer)
+    // 2. Draw resource icons above tiles, below number tokens
+    for (let i = 0; i < positions.length; i++) {
+      drawTileIcon(svgElement, positions[i], tiles[i]);
+    }
+
+    // 3. Draw number tokens on top of icon layer
     for (const [idxStr, number] of Object.entries(numbers)) {
       drawNumberToken(svgElement, positions[parseInt(idxStr, 10)], number);
     }
 
-    // 3. Draw robber on top of everything (top layer)
+    // 4. Draw robber on top of everything (top layer)
     drawRobber(svgElement, positions[robber]);
   }
 
