@@ -203,6 +203,13 @@ window.Board = (() => {
       white:  { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
       orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
     };
+    board.gameState = {
+      phase:                'main',
+      currentPlayerIndex:   0,
+      playerOrder:          ['red', 'blue', 'white', 'orange'],
+      turnPhase:            'roll',   // 'roll' | 'build'
+      diceRolled:           false,
+    };
     return board;
   }
 
@@ -316,5 +323,16 @@ window.Board = (() => {
     return { type: 'distribute', rolledNumber, distribution, log };
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources };
+  function getCurrentPlayer(board) {
+    return board.gameState.playerOrder[board.gameState.currentPlayerIndex];
+  }
+
+  function endTurn(board) {
+    const gs = board.gameState;
+    gs.currentPlayerIndex = (gs.currentPlayerIndex + 1) % gs.playerOrder.length;
+    gs.diceRolled = false;
+    gs.turnPhase  = 'roll';
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn };
 })();

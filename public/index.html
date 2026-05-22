@@ -96,21 +96,29 @@
       font-weight: bold;
       cursor: pointer;
       white-space: nowrap;
-      transition: background 0.1s;
+      transition: background 0.1s, opacity 0.15s;
     }
     .top-btn.active {
       background: white;
       color: #1a1a2e;
       border-color: white;
     }
-    .top-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.26); }
+    .top-btn:hover:not(.active):not(:disabled) { background: rgba(255, 255, 255, 0.26); }
+    .top-btn:disabled { cursor: not-allowed; }
 
     #roll-dice-btn {
       background: #d4850e;
       border-color: #b06a00;
       color: #fff;
     }
-    #roll-dice-btn:hover { background: #e8960f; }
+    #roll-dice-btn:hover:not(:disabled) { background: #e8960f; }
+
+    #end-turn-btn {
+      background: rgba(50, 150, 90, 0.55);
+      border-color: rgba(60, 180, 100, 0.5);
+      color: #fff;
+    }
+    #end-turn-btn:hover:not(:disabled) { background: rgba(50, 170, 100, 0.75); }
 
     /* ── MAIN (board + right panel) ───────────────────────────── */
     #main {
@@ -200,6 +208,7 @@
       padding: 7px 10px;
       border-left: 3px solid transparent;
       flex-shrink: 0;
+      transition: box-shadow 0.25s, transform 0.2s;
     }
     .player-panel[data-player="red"]    { border-left-color: #d33; }
     .player-panel[data-player="blue"]   { border-left-color: #36c; }
@@ -227,6 +236,16 @@
       font-size: 0.7rem;
       font-weight: bold;
       color: #ffd700;
+    }
+    .turn-badge {
+      display: none;
+      font-size: 0.58rem;
+      font-weight: bold;
+      background: #ffd700;
+      color: #1a1a2e;
+      border-radius: 3px;
+      padding: 1px 4px;
+      letter-spacing: 0.3px;
     }
 
     .player-resources {
@@ -272,6 +291,7 @@
 
     <button class="top-btn" id="clear-pieces-btn">Clear</button>
     <button class="top-btn" id="roll-dice-btn">🎲 Roll Dice</button>
+    <button class="top-btn" id="end-turn-btn">End Turn →</button>
     <button class="top-btn" id="regenerate-btn">Regenerate</button>
     <button class="top-btn" id="balanced-btn">Balanced</button>
     <button class="top-btn" id="toggle-graph-btn">Graph</button>
@@ -305,6 +325,7 @@
             <span class="player-dot" style="background:#d33"></span>
             <span class="player-name">Red</span>
             <span class="player-vp">0 VP</span>
+            <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
             <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
@@ -320,6 +341,7 @@
             <span class="player-dot" style="background:#36c"></span>
             <span class="player-name">Blue</span>
             <span class="player-vp">0 VP</span>
+            <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
             <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
@@ -335,6 +357,7 @@
             <span class="player-dot" style="background:#ccc"></span>
             <span class="player-name">White</span>
             <span class="player-vp">0 VP</span>
+            <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
             <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
@@ -350,6 +373,7 @@
             <span class="player-dot" style="background:#f80"></span>
             <span class="player-name">Orange</span>
             <span class="player-vp">0 VP</span>
+            <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
             <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
@@ -377,6 +401,8 @@
       const svg       = document.getElementById('board');
       const infoBar   = document.getElementById('info-bar');
       const seedLabel = document.getElementById('seed-label');
+      const rollBtn   = document.getElementById('roll-dice-btn');
+      const endBtn    = document.getElementById('end-turn-btn');
 
       // ----- Lookup tables -----
       const RESOURCE = {
@@ -390,11 +416,50 @@
       let graphVisible = false;
 
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
+      // currentPlayer = who the local user is placing pieces as (must match turn player)
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
 
-      // ----- Player panels -----
+      // ----- UI helpers -----
+      function showError(reason) {
+        clearTimeout(errorTimer);
+        infoBar.style.color = '#ff8080';
+        infoBar.textContent = reason;
+        errorTimer = setTimeout(clearInfoBar, 2000);
+      }
+
+      function clearInfoBar() {
+        clearTimeout(errorTimer);
+        errorTimer = null;
+        infoBar.style.color = '';
+        infoBar.textContent = 'Click a tile to inspect it or move the robber';
+      }
+
+      // Highlights the active player's panel and syncs Roll Dice / End Turn states.
+      function updateTurnUI() {
+        if (!board) return;
+        const active   = Board.getCurrentPlayer(board);
+        const colorMap = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
+
+        document.querySelectorAll('.player-panel').forEach(panel => {
+          const p        = panel.dataset.player;
+          const isActive = p === active;
+          panel.style.boxShadow = isActive ? `0 0 14px 2px ${colorMap[p]}` : '';
+          panel.style.transform = isActive ? 'scale(1.04)' : '';
+          const badge = panel.querySelector('.turn-badge');
+          if (badge) badge.style.display = isActive ? 'inline' : 'none';
+        });
+
+        const isRollPhase  = board.gameState.turnPhase === 'roll';
+        const isBuildPhase = board.gameState.turnPhase === 'build';
+        rollBtn.disabled   = !isRollPhase;
+        rollBtn.style.opacity = isRollPhase ? '' : '0.4';
+        endBtn.disabled    = !isBuildPhase;
+        endBtn.style.opacity = isBuildPhase ? '' : '0.4';
+      }
+
+      // Updates the VP and resource counts in all four player panels.
       function updatePlayerPanels() {
         if (!board) return;
         ['red', 'blue', 'white', 'orange'].forEach(player => {
@@ -415,20 +480,6 @@
         if (g) g.style.display = graphVisible ? '' : 'none';
       }
 
-      function showError(reason) {
-        clearTimeout(errorTimer);
-        infoBar.style.color = '#ff8080';
-        infoBar.textContent = reason;
-        errorTimer = setTimeout(clearInfoBar, 2000);
-      }
-
-      function clearInfoBar() {
-        clearTimeout(errorTimer);
-        errorTimer = null;
-        infoBar.style.color = '';
-        infoBar.textContent = 'Click a tile to inspect it or move the robber';
-      }
-
       // Full re-render — wipes the SVG and rebuilds all layers in z-order.
       function renderAndWire(b) {
         board = b;
@@ -441,6 +492,7 @@
         Render.attachEdgeClickHandlers(svg, board, onEdgeClick);
         seedLabel.textContent = `Seed: ${board.seed}`;
         updatePlayerPanels();
+        updateTurnUI();
       }
 
       // ----- Click handlers -----
@@ -467,7 +519,20 @@
       }
 
       function onVertexClick(vIdx) {
+        // Turn-order gate
+        if (board.gameState.turnPhase === 'roll') {
+          showError('roll dice before building');
+          return;
+        }
+        if (Board.getCurrentPlayer(board) !== currentPlayer) {
+          const { x, y } = board.graph.vertices[vIdx];
+          Render.flashInvalid(svg, x, y);
+          showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
+          return;
+        }
+
         const { x, y } = board.graph.vertices[vIdx];
+
         if (currentMode === 'settlement') {
           const r = Board.canPlaceSettlement(board, vIdx, currentPlayer);
           if (r.valid) {
@@ -496,6 +561,19 @@
 
       function onEdgeClick(eIdx) {
         if (currentMode !== 'road') return;
+
+        // Turn-order gate
+        if (board.gameState.turnPhase === 'roll') {
+          showError('roll dice before building');
+          return;
+        }
+        if (Board.getCurrentPlayer(board) !== currentPlayer) {
+          const edge = board.graph.edges[eIdx];
+          Render.flashInvalid(svg, (edge.x1 + edge.x2) / 2, (edge.y1 + edge.y2) / 2);
+          showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
+          return;
+        }
+
         const edge = board.graph.edges[eIdx];
         const mx   = (edge.x1 + edge.x2) / 2;
         const my   = (edge.y1 + edge.y2) / 2;
@@ -510,6 +588,7 @@
         }
       }
 
+      // ----- Board utility -----
       function isBalanced(b) {
         for (let i = 0; i < b.tiles.length; i++) {
           if (b.numbers[i] !== 6 && b.numbers[i] !== 8) continue;
@@ -554,15 +633,33 @@
         updatePlayerPanels();
       });
 
-      document.getElementById('roll-dice-btn').addEventListener('click', () => {
+      rollBtn.addEventListener('click', () => {
+        if (board.gameState.turnPhase !== 'roll') {
+          showError('already rolled — end your turn first');
+          return;
+        }
         const roll   = Board.rollDice();
         Render.drawDice(svg, roll.d1, roll.d2);
         const result = Board.distributeResources(board, roll.total);
-        const entry  = document.createElement('p');
+        board.gameState.diceRolled = true;
+        board.gameState.turnPhase  = 'build';
+        const entry = document.createElement('p');
         entry.textContent = result.log;
         const rollLog = document.getElementById('roll-log');
         rollLog.insertBefore(entry, rollLog.firstChild);
         Render.drawPieces(svg, board, PLAYER_COLORS);
+        updatePlayerPanels();
+        updateTurnUI();
+      });
+
+      endBtn.addEventListener('click', () => {
+        if (board.gameState.turnPhase !== 'build') {
+          showError('must roll dice before ending your turn');
+          return;
+        }
+        Board.endTurn(board);
+        clearInfoBar();
+        updateTurnUI();
         updatePlayerPanels();
       });
 
