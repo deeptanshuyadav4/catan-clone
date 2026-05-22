@@ -76,14 +76,15 @@
       padding: 0;
       cursor: pointer;
       box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-      transition: transform 0.1s;
+      transition: transform 0.1s, opacity 0.15s;
     }
     .player-btn.active {
       border: 2px solid #000;
       outline: 2px solid white;
       outline-offset: 1px;
     }
-    .player-btn:hover { transform: scale(1.18); }
+    .player-btn:not(:disabled):hover { transform: scale(1.18); }
+    .player-btn:disabled { cursor: not-allowed; }
 
     /* All top-bar action / mode buttons */
     .top-btn {
@@ -119,6 +120,15 @@
       color: #fff;
     }
     #end-turn-btn:hover:not(:disabled) { background: rgba(50, 170, 100, 0.75); }
+
+    /* Opening phase label — shown in place of Roll Dice / End Turn */
+    #opening-label {
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: #ffd700;
+      white-space: nowrap;
+      display: none;
+    }
 
     /* ── MAIN (board + right panel) ───────────────────────────── */
     #main {
@@ -292,6 +302,7 @@
     <button class="top-btn" id="clear-pieces-btn">Clear</button>
     <button class="top-btn" id="roll-dice-btn">🎲 Roll Dice</button>
     <button class="top-btn" id="end-turn-btn">End Turn →</button>
+    <span id="opening-label"></span>
     <button class="top-btn" id="regenerate-btn">Regenerate</button>
     <button class="top-btn" id="balanced-btn">Balanced</button>
     <button class="top-btn" id="toggle-graph-btn">Graph</button>
@@ -398,11 +409,12 @@
     document.addEventListener('DOMContentLoaded', () => {
 
       // ----- Element refs -----
-      const svg       = document.getElementById('board');
-      const infoBar   = document.getElementById('info-bar');
-      const seedLabel = document.getElementById('seed-label');
-      const rollBtn   = document.getElementById('roll-dice-btn');
-      const endBtn    = document.getElementById('end-turn-btn');
+      const svg            = document.getElementById('board');
+      const infoBar        = document.getElementById('info-bar');
+      const seedLabel      = document.getElementById('seed-label');
+      const rollBtn        = document.getElementById('roll-dice-btn');
+      const endBtn         = document.getElementById('end-turn-btn');
+      const openingLabel   = document.getElementById('opening-label');
 
       // ----- Lookup tables -----
       const RESOURCE = {
@@ -416,7 +428,9 @@
       let graphVisible = false;
 
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
-      // currentPlayer = who the local user is placing pieces as (must match turn player)
+      // currentPlayer tracks who the local user is placing pieces as.
+      // During opening this is forced to match snake-order; during main the
+      // player selects it manually.
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
@@ -436,12 +450,44 @@
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
 
-      // Highlights the active player's panel and syncs Roll Dice / End Turn states.
+      // Forces currentPlayer + currentMode to match game state during opening,
+      // and syncs the visual highlight + disabled state of all selector buttons.
+      function syncPlayerAndMode() {
+        if (!board) return;
+        const isOpening = board.gameState.phase === 'opening';
+
+        if (isOpening) {
+          currentPlayer = Board.getCurrentPlayer(board);
+          currentMode   = board.gameState.openingStep;
+        }
+
+        // Player selector circles
+        document.querySelectorAll('.player-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.player === currentPlayer);
+          btn.disabled      = isOpening;
+          btn.style.opacity = isOpening ? '0.6' : '';
+        });
+
+        // Mode buttons — also hide "City" during opening
+        document.querySelectorAll('[data-mode]').forEach(btn => {
+          const m = btn.dataset.mode;
+          if (m === 'city') {
+            btn.style.display = isOpening ? 'none' : '';
+          }
+          btn.classList.toggle('active', m === currentMode);
+          btn.disabled      = isOpening;
+          btn.style.opacity = isOpening ? (m === currentMode ? '' : '0.35') : '';
+        });
+      }
+
+      // Updates player-panel glow, TURN badge, and button enable/disable states.
       function updateTurnUI() {
         if (!board) return;
-        const active   = Board.getCurrentPlayer(board);
-        const colorMap = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
+        const isOpening  = board.gameState.phase === 'opening';
+        const active     = Board.getCurrentPlayer(board);
+        const colorMap   = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
 
+        // Player panel glow + TURN badge
         document.querySelectorAll('.player-panel').forEach(panel => {
           const p        = panel.dataset.player;
           const isActive = p === active;
@@ -451,12 +497,32 @@
           if (badge) badge.style.display = isActive ? 'inline' : 'none';
         });
 
-        const isRollPhase  = board.gameState.turnPhase === 'roll';
-        const isBuildPhase = board.gameState.turnPhase === 'build';
-        rollBtn.disabled   = !isRollPhase;
-        rollBtn.style.opacity = isRollPhase ? '' : '0.4';
-        endBtn.disabled    = !isBuildPhase;
-        endBtn.style.opacity = isBuildPhase ? '' : '0.4';
+        // Show opening label OR roll-dice / end-turn buttons
+        if (isOpening) {
+          rollBtn.style.display    = 'none';
+          endBtn.style.display     = 'none';
+          openingLabel.style.display = '';
+          const gs          = board.gameState;
+          const roundNum    = gs.openingTurn < 4 ? 1 : 2;
+          const stepText    = gs.openingStep === 'settlement'
+            ? `settlement ${roundNum} of 2`
+            : 'road';
+          openingLabel.textContent  =
+            `Opening — ${active}: place ${stepText}`;
+        } else {
+          rollBtn.style.display    = '';
+          endBtn.style.display     = '';
+          openingLabel.style.display = 'none';
+
+          const isRollPhase  = board.gameState.turnPhase === 'roll';
+          const isBuildPhase = board.gameState.turnPhase === 'build';
+          rollBtn.disabled      = !isRollPhase;
+          rollBtn.style.opacity = isRollPhase  ? '' : '0.4';
+          endBtn.disabled       = !isBuildPhase;
+          endBtn.style.opacity  = isBuildPhase ? '' : '0.4';
+        }
+
+        syncPlayerAndMode();
       }
 
       // Updates the VP and resource counts in all four player panels.
@@ -519,8 +585,10 @@
       }
 
       function onVertexClick(vIdx) {
+        const isOpening = board.gameState.phase === 'opening';
+
         // Turn-order gate
-        if (board.gameState.turnPhase === 'roll') {
+        if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building');
           return;
         }
@@ -531,14 +599,33 @@
           return;
         }
 
+        // During opening, clicking a vertex while waiting for a road is an error
+        if (isOpening && board.gameState.openingStep !== 'settlement') {
+          const { x, y } = board.graph.vertices[vIdx];
+          Render.flashInvalid(svg, x, y);
+          showError('place your road first');
+          return;
+        }
+
         const { x, y } = board.graph.vertices[vIdx];
 
         if (currentMode === 'settlement') {
           const r = Board.canPlaceSettlement(board, vIdx, currentPlayer);
           if (r.valid) {
             board.pieces.settlements[vIdx] = currentPlayer;
+
+            if (isOpening) {
+              board.gameState.lastSettlementVertex = vIdx;
+              if (board.gameState.openingTurn >= 4) {
+                Board.giveStartingResources(board, vIdx, currentPlayer);
+              }
+              Board.advanceOpening(board);   // openingStep → 'road'
+              syncPlayerAndMode();
+            }
+
             Render.drawPieces(svg, board, PLAYER_COLORS);
             updatePlayerPanels();
+            updateTurnUI();
             clearInfoBar();
           } else {
             Render.flashInvalid(svg, x, y);
@@ -562,8 +649,10 @@
       function onEdgeClick(eIdx) {
         if (currentMode !== 'road') return;
 
+        const isOpening = board.gameState.phase === 'opening';
+
         // Turn-order gate
-        if (board.gameState.turnPhase === 'roll') {
+        if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building');
           return;
         }
@@ -574,12 +663,36 @@
           return;
         }
 
+        // During opening, clicking a road while waiting for a settlement is an error
+        if (isOpening && board.gameState.openingStep !== 'road') {
+          const edge = board.graph.edges[eIdx];
+          Render.flashInvalid(svg, (edge.x1 + edge.x2) / 2, (edge.y1 + edge.y2) / 2);
+          showError('place your settlement first');
+          return;
+        }
+
         const edge = board.graph.edges[eIdx];
         const mx   = (edge.x1 + edge.x2) / 2;
         const my   = (edge.y1 + edge.y2) / 2;
         const r    = Board.canPlaceRoad(board, eIdx, currentPlayer);
+
         if (r.valid) {
           board.pieces.roads[eIdx] = currentPlayer;
+
+          if (isOpening) {
+            Board.advanceOpening(board);
+            const transitioned = board.gameState.phase === 'main';
+            syncPlayerAndMode();
+            Render.drawPieces(svg, board, PLAYER_COLORS);
+            updatePlayerPanels();
+            updateTurnUI();
+            if (transitioned) {
+              infoBar.style.color = '#7fffb0';
+              infoBar.textContent = 'Opening complete! Red rolls first.';
+            }
+            return;
+          }
+
           Render.drawPieces(svg, board, PLAYER_COLORS);
           clearInfoBar();
         } else {
@@ -607,6 +720,7 @@
 
       document.querySelectorAll('.player-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (btn.disabled) return;
           document.querySelectorAll('.player-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentPlayer = btn.dataset.player;
@@ -615,6 +729,7 @@
 
       document.querySelectorAll('[data-mode]').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (btn.disabled) return;
           document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentMode = btn.dataset.mode;

@@ -204,17 +204,21 @@ window.Board = (() => {
       orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
     };
     board.gameState = {
-      phase:                'main',
-      currentPlayerIndex:   0,
-      playerOrder:          ['red', 'blue', 'white', 'orange'],
-      turnPhase:            'roll',   // 'roll' | 'build'
-      diceRolled:           false,
+      phase:                  'opening',
+      openingTurn:            0,
+      openingOrder:           ['red', 'blue', 'white', 'orange', 'orange', 'white', 'blue', 'red'],
+      openingStep:            'settlement',  // 'settlement' | 'road'
+      lastSettlementVertex:   null,
+      currentPlayerIndex:     0,
+      playerOrder:            ['red', 'blue', 'white', 'orange'],
+      turnPhase:              'roll',
+      diceRolled:             false,
     };
     return board;
   }
 
   function canPlaceSettlement(board, vertexIdx, playerId) {
-    const { settlements, cities } = board.pieces;
+    const { settlements, cities, roads } = board.pieces;
     if (settlements[vertexIdx] || cities[vertexIdx]) {
       return { valid: false, reason: 'spot is taken' };
     }
@@ -222,6 +226,11 @@ window.Board = (() => {
       if (settlements[adjV] || cities[adjV]) {
         return { valid: false, reason: 'too close to another settlement' };
       }
+    }
+    // Main phase only: settlement must be adjacent to one of the player's roads
+    if (board.gameState.phase !== 'opening') {
+      const hasRoad = (board.graph.vertexEdges[vertexIdx] || []).some(eIdx => roads[eIdx] === playerId);
+      if (!hasRoad) return { valid: false, reason: 'settlement must connect to your road' };
     }
     return { valid: true, reason: '' };
   }
@@ -232,6 +241,14 @@ window.Board = (() => {
       return { valid: false, reason: 'road already exists' };
     }
     const edge = board.graph.edges[edgeIdx];
+    // Opening phase: road must touch the settlement just placed
+    if (board.gameState.phase === 'opening') {
+      const lastV = board.gameState.lastSettlementVertex;
+      if (edge.vertexA !== lastV && edge.vertexB !== lastV) {
+        return { valid: false, reason: 'road must touch the settlement you just placed' };
+      }
+      return { valid: true, reason: '' };
+    }
     for (const vIdx of [edge.vertexA, edge.vertexB]) {
       if (settlements[vIdx] === playerId || cities[vIdx] === playerId) {
         return { valid: true, reason: '' };
@@ -324,6 +341,9 @@ window.Board = (() => {
   }
 
   function getCurrentPlayer(board) {
+    if (board.gameState.phase === 'opening') {
+      return board.gameState.openingOrder[board.gameState.openingTurn];
+    }
     return board.gameState.playerOrder[board.gameState.currentPlayerIndex];
   }
 
@@ -334,5 +354,27 @@ window.Board = (() => {
     gs.turnPhase  = 'roll';
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn };
+  function advanceOpening(board) {
+    const gs = board.gameState;
+    if (gs.openingStep === 'settlement') {
+      gs.openingStep = 'road';
+    } else {
+      gs.openingStep = 'settlement';
+      gs.openingTurn++;
+      if (gs.openingTurn > 7) {
+        gs.phase              = 'main';
+        gs.currentPlayerIndex = 0;
+        gs.turnPhase          = 'roll';
+      }
+    }
+  }
+
+  function giveStartingResources(board, vertexIdx, playerId) {
+    board.graph.vertices[vertexIdx].tiles.forEach(tileIdx => {
+      const resource = TILE_RESOURCE[board.tiles[tileIdx]];
+      if (resource) board.players[playerId][resource] += 1;
+    });
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn, advanceOpening, giveStartingResources };
 })();
