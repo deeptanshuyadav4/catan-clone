@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Catan Clone</title>
 
-  <!-- board.js and render.js are deferred: they download in parallel,
-       then execute in order after all HTML is parsed, before DOMContentLoaded. -->
   <script src="board.js" defer></script>
   <script src="render.js" defer></script>
 
@@ -14,132 +12,245 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #2b8fd6;
-      min-height: 100vh;
-      padding: 24px 16px 40px;
+      background: #1a3a5c;
+      height: 100vh;
+      overflow: hidden;
       font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
+      color: #fff;
+    }
+
+    /* ── TOP BAR ──────────────────────────────────────────────── */
+    #top-bar {
+      flex-shrink: 0;
+      display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      padding: 6px 14px;
+      background: rgba(0, 0, 0, 0.28);
+      flex-wrap: wrap;
     }
 
     h1 {
-      color: #ffffff;
-      font-size: 2rem;
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-      letter-spacing: 1px;
+      font-size: 1.2rem;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.4);
     }
 
     #info-bar {
-      color: #ffffff;
-      font-size: 0.85rem;
-      opacity: 0.9;
-      min-height: 1.3em; /* keeps layout stable when text changes */
+      font-size: 0.76rem;
+      opacity: 0.88;
+      min-height: 1.2em;
+      white-space: nowrap;
+      flex: 1;
       text-align: center;
     }
 
-    /* The SVG fills this container; viewBox="0 0 800 800" is set by renderBoard */
-    #board {
-      width: 100%;
-      max-width: 700px;
-      height: auto;
-      background: #2b8fd6;        /* ocean blue shows through gaps around hex grid */
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    .bar-sep {
+      width: 1px;
+      height: 22px;
+      background: rgba(255, 255, 255, 0.22);
+      flex-shrink: 0;
     }
 
-    .btn-row {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    button {
-      background: #ffffff;
-      color: #1a1a2e;
-      border: none;
-      border-radius: 24px;
-      padding: 10px 28px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
-      transition: transform 0.1s, box-shadow 0.1s;
-    }
-    button:hover  { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(0,0,0,0.3); }
-    button:active { transform: translateY(0);    box-shadow: 0 2px  6px rgba(0,0,0,0.2); }
-
-    #seed-label {
-      color: rgba(255, 255, 255, 0.65);
-      font-size: 0.72rem;
-      font-family: monospace;
-    }
-
-    #controls {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.15);
-      border-radius: 16px;
-      padding: 10px 20px;
-      width: 100%;
-      max-width: 700px;
-    }
     .control-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
     }
     .control-label {
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.72rem;
       font-weight: bold;
+      white-space: nowrap;
     }
-    /* Player color circles — override the general button pill shape */
+
+    /* Player color circles */
     .player-btn {
-      width: 30px;
-      height: 30px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       border: 2px solid transparent;
       padding: 0;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+      transition: transform 0.1s;
     }
     .player-btn.active {
-      border: 3px solid #000;
+      border: 2px solid #000;
       outline: 2px solid white;
       outline-offset: 1px;
     }
-    .player-btn:hover, .player-btn:active { transform: none; }
-    /* Mode buttons — pill-shaped but smaller and subtler than the board buttons */
-    .mode-btn {
-      background: rgba(255, 255, 255, 0.18);
+    .player-btn:hover { transform: scale(1.18); }
+
+    /* All top-bar action / mode buttons */
+    .top-btn {
+      background: rgba(255, 255, 255, 0.14);
       color: white;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      border-radius: 8px;
-      padding: 6px 14px;
-      font-size: 0.82rem;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 0.76rem;
       font-weight: bold;
-      box-shadow: none;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s;
     }
-    .mode-btn.active {
+    .top-btn.active {
       background: white;
       color: #1a1a2e;
       border-color: white;
     }
-    .mode-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.32); box-shadow: none; }
-    .mode-btn:hover, .mode-btn:active { transform: none; }
+    .top-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.26); }
+
+    #roll-dice-btn {
+      background: #d4850e;
+      border-color: #b06a00;
+      color: #fff;
+    }
+    #roll-dice-btn:hover { background: #e8960f; }
+
+    /* ── MAIN (board + right panel) ───────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      gap: 10px;
+      padding: 8px 12px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Left — SVG board */
+    #board-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #board {
+      max-width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1;
+      background: #2b8fd6;
+      border-radius: 12px;
+      box-shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+    }
+
+    #seed-label {
+      flex-shrink: 0;
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 0.65rem;
+      font-family: monospace;
+      margin-top: 4px;
+    }
+
+    /* Right panel */
+    #right-panel {
+      width: 222px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 0.68rem;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.55);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 4px;
+    }
+
+    /* Roll log */
+    #roll-log-box { flex-shrink: 0; }
+    #roll-log {
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #e8e8e8;
+    }
+    #roll-log p { margin: 2px 0; line-height: 1.45; }
+
+    /* Player panels */
+    #player-panels {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .player-panel {
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      flex-shrink: 0;
+    }
+    .player-panel[data-player="red"]    { border-left-color: #d33; }
+    .player-panel[data-player="blue"]   { border-left-color: #36c; }
+    .player-panel[data-player="white"]  { border-left-color: #ccc; }
+    .player-panel[data-player="orange"] { border-left-color: #f80; }
+
+    .player-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .player-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .player-name {
+      font-size: 0.8rem;
+      font-weight: bold;
+      flex: 1;
+    }
+    .player-vp {
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: #ffd700;
+    }
+
+    .player-resources {
+      display: flex;
+      gap: 3px;
+    }
+    .res-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+    .res-emoji { font-size: 0.82rem; line-height: 1; }
+    .res-count { font-size: 0.78rem; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>Catan Clone</h1>
-  <p id="info-bar">Click a tile to inspect it or move the robber</p>
+  <!-- TOP BAR -->
+  <div id="top-bar">
+    <h1>Catan Clone</h1>
+    <div class="bar-sep"></div>
 
-  <div id="controls">
     <div class="control-group">
       <span class="control-label">Player</span>
       <button class="player-btn active" data-player="red"    style="background:#d33" title="Red"></button>
@@ -147,35 +258,119 @@
       <button class="player-btn"        data-player="white"  style="background:#eee" title="White"></button>
       <button class="player-btn"        data-player="orange" style="background:#f80" title="Orange"></button>
     </div>
+
+    <div class="bar-sep"></div>
+
     <div class="control-group">
       <span class="control-label">Mode</span>
-      <button class="mode-btn active" data-mode="settlement">Settlement</button>
-      <button class="mode-btn"        data-mode="city">City</button>
-      <button class="mode-btn"        data-mode="road">Road</button>
+      <button class="top-btn active" data-mode="settlement">Settlement</button>
+      <button class="top-btn"        data-mode="city">City</button>
+      <button class="top-btn"        data-mode="road">Road</button>
     </div>
-    <button id="clear-pieces-btn">Clear Pieces</button>
+
+    <div class="bar-sep"></div>
+
+    <button class="top-btn" id="clear-pieces-btn">Clear</button>
+    <button class="top-btn" id="roll-dice-btn">🎲 Roll Dice</button>
+    <button class="top-btn" id="regenerate-btn">Regenerate</button>
+    <button class="top-btn" id="balanced-btn">Balanced</button>
+    <button class="top-btn" id="toggle-graph-btn">Graph</button>
+
+    <div class="bar-sep"></div>
+    <span id="info-bar">Click a tile to inspect it or move the robber</span>
   </div>
 
-  <svg id="board"></svg>
+  <!-- MAIN -->
+  <div id="main">
 
-  <div class="btn-row">
-    <button id="regenerate-btn">Regenerate</button>
-    <button id="balanced-btn">Balanced</button>
-    <button id="toggle-graph-btn">Toggle Graph</button>
+    <!-- Board (left) -->
+    <div id="board-area">
+      <svg id="board"></svg>
+      <div id="seed-label"></div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+
+      <div id="roll-log-box">
+        <div class="panel-title">Roll Log</div>
+        <div id="roll-log"></div>
+      </div>
+
+      <div class="panel-title">Players</div>
+      <div id="player-panels">
+
+        <div class="player-panel" data-player="red">
+          <div class="player-header">
+            <span class="player-dot" style="background:#d33"></span>
+            <span class="player-name">Red</span>
+            <span class="player-vp">0 VP</span>
+          </div>
+          <div class="player-resources">
+            <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
+            <div class="res-item"><span class="res-emoji">🧱</span><span class="res-count" data-res="brick">0</span></div>
+            <div class="res-item"><span class="res-emoji">🌾</span><span class="res-count" data-res="wheat">0</span></div>
+            <div class="res-item"><span class="res-emoji">🐑</span><span class="res-count" data-res="wool">0</span></div>
+            <div class="res-item"><span class="res-emoji">⛏️</span><span class="res-count" data-res="ore">0</span></div>
+          </div>
+        </div>
+
+        <div class="player-panel" data-player="blue">
+          <div class="player-header">
+            <span class="player-dot" style="background:#36c"></span>
+            <span class="player-name">Blue</span>
+            <span class="player-vp">0 VP</span>
+          </div>
+          <div class="player-resources">
+            <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
+            <div class="res-item"><span class="res-emoji">🧱</span><span class="res-count" data-res="brick">0</span></div>
+            <div class="res-item"><span class="res-emoji">🌾</span><span class="res-count" data-res="wheat">0</span></div>
+            <div class="res-item"><span class="res-emoji">🐑</span><span class="res-count" data-res="wool">0</span></div>
+            <div class="res-item"><span class="res-emoji">⛏️</span><span class="res-count" data-res="ore">0</span></div>
+          </div>
+        </div>
+
+        <div class="player-panel" data-player="white">
+          <div class="player-header">
+            <span class="player-dot" style="background:#ccc"></span>
+            <span class="player-name">White</span>
+            <span class="player-vp">0 VP</span>
+          </div>
+          <div class="player-resources">
+            <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
+            <div class="res-item"><span class="res-emoji">🧱</span><span class="res-count" data-res="brick">0</span></div>
+            <div class="res-item"><span class="res-emoji">🌾</span><span class="res-count" data-res="wheat">0</span></div>
+            <div class="res-item"><span class="res-emoji">🐑</span><span class="res-count" data-res="wool">0</span></div>
+            <div class="res-item"><span class="res-emoji">⛏️</span><span class="res-count" data-res="ore">0</span></div>
+          </div>
+        </div>
+
+        <div class="player-panel" data-player="orange">
+          <div class="player-header">
+            <span class="player-dot" style="background:#f80"></span>
+            <span class="player-name">Orange</span>
+            <span class="player-vp">0 VP</span>
+          </div>
+          <div class="player-resources">
+            <div class="res-item"><span class="res-emoji">🪵</span><span class="res-count" data-res="wood">0</span></div>
+            <div class="res-item"><span class="res-emoji">🧱</span><span class="res-count" data-res="brick">0</span></div>
+            <div class="res-item"><span class="res-emoji">🌾</span><span class="res-count" data-res="wheat">0</span></div>
+            <div class="res-item"><span class="res-emoji">🐑</span><span class="res-count" data-res="wool">0</span></div>
+            <div class="res-item"><span class="res-emoji">⛏️</span><span class="res-count" data-res="ore">0</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
-  <div id="seed-label"></div>
 
-  <!-- Socket.io client — served automatically by the server at this URL -->
+  <!-- Socket.io client -->
   <script src="/socket.io/socket.io.js"></script>
 
   <script>
-    // Socket.io connection: runs immediately (doesn't need the DOM or other scripts)
     const socket = io();
     socket.on('connect', () => console.log('connected to server'));
 
-    // Everything that uses Board / Render must wait until DOMContentLoaded,
-    // because deferred scripts (board.js, render.js) finish executing just before
-    // that event fires — so window.Board and window.Render are guaranteed to exist here.
     document.addEventListener('DOMContentLoaded', () => {
 
       // ----- Element refs -----
@@ -185,27 +380,36 @@
 
       // ----- Lookup tables -----
       const RESOURCE = {
-        forest:    'Wood',
-        pasture:   'Wool',
-        fields:    'Wheat',
-        hills:     'Brick',
-        mountains: 'Ore',
-        desert:    null,
+        forest: 'Wood', pasture: 'Wool', fields: 'Wheat',
+        hills: 'Brick', mountains: 'Ore', desert: null,
       };
-      // Number → how many ways out of 36 to roll it
       const PROB = { 2:1, 3:2, 4:3, 5:4, 6:5, 8:5, 9:4, 10:3, 11:2, 12:1 };
 
       // ----- Board state -----
       let board;
-      let graphVisible = false;  // hidden by default now that pieces are visible
+      let graphVisible = false;
 
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
 
-      // Applies the current graphVisible state to the debug group in the SVG.
-      // Called after every render and after the toggle button is pressed.
+      // ----- Player panels -----
+      function updatePlayerPanels() {
+        if (!board) return;
+        ['red', 'blue', 'white', 'orange'].forEach(player => {
+          const panel = document.querySelector(`.player-panel[data-player="${player}"]`);
+          if (!panel) return;
+          const sCount = Object.values(board.pieces.settlements).filter(p => p === player).length;
+          const cCount = Object.values(board.pieces.cities).filter(p => p === player).length;
+          panel.querySelector('.player-vp').textContent = `${sCount + cCount * 2} VP`;
+          const res = board.players[player];
+          panel.querySelectorAll('.res-count').forEach(el => {
+            el.textContent = res[el.dataset.res] ?? 0;
+          });
+        });
+      }
+
       function applyGraphVisibility() {
         const g = svg.querySelector('#graph-debug');
         if (g) g.style.display = graphVisible ? '' : 'none';
@@ -225,46 +429,43 @@
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
 
-      // Full re-render: wipes the SVG and rebuilds all layers in z-order.
-      // Called after every board change (initial load, Regenerate, Balanced, robber move).
+      // Full re-render — wipes the SVG and rebuilds all layers in z-order.
       function renderAndWire(b) {
         board = b;
-        Render.renderBoard(svg, board);                                // tiles + tokens + robber
-        Render.attachClickHandlers(svg, board, onTileClick);           // tile click handlers
-        Render.drawGraphDebug(svg, board);                             // debug overlay
+        Render.renderBoard(svg, board);
+        Render.attachClickHandlers(svg, board, onTileClick);
+        Render.drawGraphDebug(svg, board);
         applyGraphVisibility();
-        Render.drawPieces(svg, board, PLAYER_COLORS);                  // settlement/city/road shapes
-        Render.attachVertexClickHandlers(svg, board, onVertexClick);   // transparent vertex hit areas
-        Render.attachEdgeClickHandlers(svg, board, onEdgeClick);       // transparent edge hit areas
+        Render.drawPieces(svg, board, PLAYER_COLORS);
+        Render.attachVertexClickHandlers(svg, board, onVertexClick);
+        Render.attachEdgeClickHandlers(svg, board, onEdgeClick);
         seedLabel.textContent = `Seed: ${board.seed}`;
+        updatePlayerPanels();
       }
 
-      // Called when the player clicks a hex tile
+      // ----- Click handlers -----
       function onTileClick(idx) {
         clearTimeout(errorTimer);
         errorTimer = null;
         infoBar.style.color = '';
 
         const type   = board.tiles[idx];
-        const number = board.numbers[idx]; // undefined for desert
+        const number = board.numbers[idx];
 
         if (type === 'desert') {
           infoBar.textContent = 'Desert — produces nothing, robber lives here';
           return;
         }
 
-        // Move the robber and do a full re-render so all layers stay consistent
         board.robber = idx;
         renderAndWire(board);
 
         const resource = RESOURCE[type];
         const prob     = PROB[number] || 0;
         const label    = type.charAt(0).toUpperCase() + type.slice(1);
-        infoBar.textContent =
-          `${label} → ${resource} · rolls on ${number} · ${prob}/36 odds`;
+        infoBar.textContent = `${label} → ${resource} · rolls on ${number} · ${prob}/36 odds`;
       }
 
-      // Vertex click: place/upgrade with full Catan placement rules
       function onVertexClick(vIdx) {
         const { x, y } = board.graph.vertices[vIdx];
         if (currentMode === 'settlement') {
@@ -272,6 +473,7 @@
           if (r.valid) {
             board.pieces.settlements[vIdx] = currentPlayer;
             Render.drawPieces(svg, board, PLAYER_COLORS);
+            updatePlayerPanels();
             clearInfoBar();
           } else {
             Render.flashInvalid(svg, x, y);
@@ -280,9 +482,10 @@
         } else if (currentMode === 'city') {
           const r = Board.canUpgradeToCity(board, vIdx, currentPlayer);
           if (r.valid) {
-            delete board.pieces.settlements[vIdx];   // city replaces settlement
+            delete board.pieces.settlements[vIdx];
             board.pieces.cities[vIdx] = currentPlayer;
             Render.drawPieces(svg, board, PLAYER_COLORS);
+            updatePlayerPanels();
             clearInfoBar();
           } else {
             Render.flashInvalid(svg, x, y);
@@ -291,7 +494,6 @@
         }
       }
 
-      // Edge click: place a road with full Catan placement rules
       function onEdgeClick(eIdx) {
         if (currentMode !== 'road') return;
         const edge = board.graph.edges[eIdx];
@@ -308,7 +510,6 @@
         }
       }
 
-      // Returns true when no two 6/8 tiles share an edge
       function isBalanced(b) {
         for (let i = 0; i < b.tiles.length; i++) {
           if (b.numbers[i] !== 6 && b.numbers[i] !== 8) continue;
@@ -333,9 +534,9 @@
         });
       });
 
-      document.querySelectorAll('.mode-btn').forEach(btn => {
+      document.querySelectorAll('[data-mode]').forEach(btn => {
         btn.addEventListener('click', () => {
-          document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentMode = btn.dataset.mode;
         });
@@ -343,7 +544,26 @@
 
       document.getElementById('clear-pieces-btn').addEventListener('click', () => {
         board.pieces = { settlements: {}, cities: {}, roads: {} };
+        board.players = {
+          red:    { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+          blue:   { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+          white:  { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+          orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+        };
         Render.drawPieces(svg, board, PLAYER_COLORS);
+        updatePlayerPanels();
+      });
+
+      document.getElementById('roll-dice-btn').addEventListener('click', () => {
+        const roll   = Board.rollDice();
+        Render.drawDice(svg, roll.d1, roll.d2);
+        const result = Board.distributeResources(board, roll.total);
+        const entry  = document.createElement('p');
+        entry.textContent = result.log;
+        const rollLog = document.getElementById('roll-log');
+        rollLog.insertBefore(entry, rollLog.firstChild);
+        Render.drawPieces(svg, board, PLAYER_COLORS);
+        updatePlayerPanels();
       });
 
       document.getElementById('regenerate-btn').addEventListener('click', () => {
@@ -352,7 +572,6 @@
       });
 
       document.getElementById('balanced-btn').addEventListener('click', () => {
-        // Try up to 200 boards; use the last one regardless if none are balanced
         let b = Board.generateBoard();
         for (let attempt = 0; attempt < 199; attempt++) {
           if (isBalanced(b)) break;

@@ -371,5 +371,36 @@ window.Render = (() => {
     setTimeout(() => txt.remove(), 650);
   }
 
-  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid };
+  const DIE_PIPS = {
+    1: [[25, 25]],
+    2: [[13, 13], [37, 37]],
+    3: [[13, 13], [25, 25], [37, 37]],
+    4: [[13, 13], [37, 13], [13, 37], [37, 37]],
+    5: [[13, 13], [37, 13], [25, 25], [13, 37], [37, 37]],
+    6: [[13, 13], [37, 13], [13, 25], [37, 25], [13, 37], [37, 37]],
+  };
+
+  // Draws two dice in the top-right corner of the SVG. Replaces any previous dice.
+  function drawDice(svgElement, d1, d2) {
+    const existing = svgElement.querySelector('#dice-layer');
+    if (existing) existing.remove();
+
+    const g = el('g', { id: 'dice-layer', 'pointer-events': 'none' });
+
+    function drawOneDie(x, y, value) {
+      g.appendChild(el('rect', {
+        x, y, width: 50, height: 50, rx: 8,
+        fill: 'white', stroke: '#333', 'stroke-width': 2,
+      }));
+      for (const [px, py] of (DIE_PIPS[value] || [])) {
+        g.appendChild(el('circle', { cx: x + px, cy: y + py, r: 3, fill: '#222' }));
+      }
+    }
+
+    drawOneDie(660, 55, d1);  // left die
+    drawOneDie(720, 55, d2);  // right die, 10px gap
+    svgElement.appendChild(g);
+  }
+
+  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid, drawDice };
 })();

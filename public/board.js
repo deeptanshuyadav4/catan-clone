@@ -6,6 +6,10 @@ window.Board = (() => {
   const CENTER_X   = 400;
   const CENTER_Y   = 400;
 
+  const TILE_RESOURCE = {
+    forest: 'wood', hills: 'brick', fields: 'wheat', pasture: 'wool', mountains: 'ore', desert: null,
+  };
+
   // Mulberry32: fast, seedable RNG. Returns a function that produces floats in [0, 1).
   // We use a seed so "Regenerate" can reproduce a board if the seed is shared.
   function mulberry32(seed) {
@@ -193,6 +197,12 @@ window.Board = (() => {
     const board  = _generateBoard(seed);
     board.graph  = computeGraph(board.positions);
     board.pieces = { settlements: {}, cities: {}, roads: {} };
+    board.players = {
+      red:    { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+      blue:   { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+      white:  { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+      orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
+    };
     return board;
   }
 
@@ -239,5 +249,72 @@ window.Board = (() => {
     return { valid: true, reason: '' };
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, canPlaceSettlement, canPlaceRoad, canUpgradeToCity };
+  function rollDice() {
+    const d1 = Math.floor(Math.random() * 6) + 1;
+    const d2 = Math.floor(Math.random() * 6) + 1;
+    return { d1, d2, total: d1 + d2 };
+  }
+
+  function distributeResources(board, rolledNumber) {
+    if (rolledNumber === 7) {
+      return { type: 'robber', log: 'Rolled 7 — robber mechanics not implemented yet' };
+    }
+
+    // Build the set of tile indices that fire on this number, minus the robber tile
+    const producingTiles = new Set();
+    for (let idx = 0; idx < board.tiles.length; idx++) {
+      if (board.numbers[idx] === rolledNumber && idx !== board.robber) {
+        producingTiles.add(idx);
+      }
+    }
+
+    console.log(`[distribute] rolled ${rolledNumber} | producingTiles: [${[...producingTiles]}] | robber on tile ${board.robber}`);
+    console.log(`[distribute] settlements:`, JSON.stringify(board.pieces.settlements));
+    for (const tIdx of producingTiles) {
+      const adjVerts = board.graph.vertices
+        .map((v, i) => v.tiles.includes(tIdx) ? i : -1)
+        .filter(i => i >= 0);
+      console.log(`[distribute] tile ${tIdx} (${board.tiles[tIdx]} #${board.numbers[tIdx]}) → vertices: [${adjVerts}]`);
+      for (const vIdx of adjVerts) {
+        const s = board.pieces.settlements[vIdx];
+        const c = board.pieces.cities[vIdx];
+        if (s || c) console.log(`  → vertex ${vIdx}: ${s ? 'settlement' : 'city'} = ${s || c}`);
+      }
+    }
+
+    const distribution = {};
+
+    board.graph.vertices.forEach((vertex, vIdx) => {
+      // Skip vertices that don't touch any producing tile
+      if (!vertex.tiles.some(t => producingTiles.has(t))) return;
+
+      const playerId = board.pieces.settlements[vIdx] || board.pieces.cities[vIdx] || null;
+      if (!playerId) return;
+      const amount = board.pieces.cities[vIdx] ? 2 : 1;
+
+      // Award resources for every producing tile this vertex touches
+      vertex.tiles.forEach(tileIdx => {
+        if (!producingTiles.has(tileIdx)) return;
+        const resource = TILE_RESOURCE[board.tiles[tileIdx]];
+        if (!resource) return;
+
+        if (!distribution[playerId]) distribution[playerId] = {};
+        distribution[playerId][resource] = (distribution[playerId][resource] || 0) + amount;
+        board.players[playerId][resource] += amount;
+      });
+    });
+
+    const playerParts = Object.entries(distribution).map(([pid, res]) => {
+      const resList = Object.entries(res).map(([r, a]) => `${a} ${r}`).join(', ');
+      return `${pid} got ${resList}`;
+    });
+
+    const log = playerParts.length > 0
+      ? `Rolled ${rolledNumber} — ${playerParts.join(' · ')}`
+      : `Rolled ${rolledNumber} — nobody collected anything`;
+
+    return { type: 'distribute', rolledNumber, distribution, log };
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources };
 })();
