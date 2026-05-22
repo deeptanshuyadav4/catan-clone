@@ -284,8 +284,9 @@ window.Render = (() => {
     board.graph.vertices.forEach((vertex, vIdx) => {
       const c = el('circle', {
         cx: vertex.x, cy: vertex.y, r: 12,
-        fill:  'rgba(0,0,0,0)',
-        style: 'cursor:pointer',
+        fill:             'rgba(0,0,0,0)',
+        style:            'cursor:pointer',
+        'data-vertex-idx': vIdx,
       });
       c.addEventListener('mouseenter', () => c.setAttribute('fill', 'rgba(255,255,255,0.4)'));
       c.addEventListener('mouseleave', () => c.setAttribute('fill', 'rgba(0,0,0,0)'));
@@ -293,6 +294,7 @@ window.Render = (() => {
       g.appendChild(c);
     });
     svgElement.appendChild(g);
+    console.log(`attachVertexClickHandlers: added ${board.graph.vertices.length} vertex hit circles`);
   }
 
   // Transparent thick lines along every edge (stroke-width 14).
@@ -310,14 +312,42 @@ window.Render = (() => {
         'stroke-width':   14,
         'stroke-linecap': 'round',
         style:            'cursor:pointer',
+        'data-edge-idx':  eIdx,
       });
       line.addEventListener('mouseenter', () => line.setAttribute('stroke', 'rgba(255,255,255,0.5)'));
       line.addEventListener('mouseleave', () => line.setAttribute('stroke', 'rgba(0,0,0,0)'));
       line.addEventListener('click', (e) => { e.stopPropagation(); onEdgeClick(eIdx); });
       g.appendChild(line);
     });
-    svgElement.appendChild(g);
+    // Insert edge handlers BEFORE vertex handlers so vertex circles sit on top.
+    // At every corner, three edge lines converge — without this, they bury the vertex hit area.
+    const vHandlers = svgElement.querySelector('#vertex-handlers');
+    if (vHandlers) svgElement.insertBefore(g, vHandlers);
+    else           svgElement.appendChild(g);
   }
 
-  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers };
+  // Briefly shows a red ✗ at (x, y) for 600ms then fades out — used to signal an invalid placement.
+  function flashInvalid(svgElement, x, y) {
+    const txt = el('text', {
+      x, y,
+      'text-anchor':      'middle',
+      'dominant-baseline': 'middle',
+      'font-size':        30,
+      'font-weight':      'bold',
+      fill:               '#cc0000',
+      style:              'pointer-events:none',
+    });
+    txt.textContent = '✗';
+    const anim = document.createElementNS(SVG_NS, 'animate');
+    anim.setAttribute('attributeName', 'opacity');
+    anim.setAttribute('from', '1');
+    anim.setAttribute('to', '0');
+    anim.setAttribute('dur', '0.6s');
+    anim.setAttribute('fill', 'freeze');
+    txt.appendChild(anim);
+    svgElement.appendChild(txt);
+    setTimeout(() => txt.remove(), 650);
+  }
+
+  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid };
 })();

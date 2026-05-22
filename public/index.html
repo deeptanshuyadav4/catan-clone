@@ -202,12 +202,27 @@
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
+      let errorTimer    = null;
 
       // Applies the current graphVisible state to the debug group in the SVG.
       // Called after every render and after the toggle button is pressed.
       function applyGraphVisibility() {
         const g = svg.querySelector('#graph-debug');
         if (g) g.style.display = graphVisible ? '' : 'none';
+      }
+
+      function showError(reason) {
+        clearTimeout(errorTimer);
+        infoBar.style.color = '#ff8080';
+        infoBar.textContent = reason;
+        errorTimer = setTimeout(clearInfoBar, 2000);
+      }
+
+      function clearInfoBar() {
+        clearTimeout(errorTimer);
+        errorTimer = null;
+        infoBar.style.color = '';
+        infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
 
       // Full re-render: wipes the SVG and rebuilds all layers in z-order.
@@ -226,6 +241,10 @@
 
       // Called when the player clicks a hex tile
       function onTileClick(idx) {
+        clearTimeout(errorTimer);
+        errorTimer = null;
+        infoBar.style.color = '';
+
         const type   = board.tiles[idx];
         const number = board.numbers[idx]; // undefined for desert
 
@@ -245,17 +264,48 @@
           `${label} → ${resource} · rolls on ${number} · ${prob}/36 odds`;
       }
 
-      // Vertex click: place a settlement or city at that corner
+      // Vertex click: place/upgrade with full Catan placement rules
       function onVertexClick(vIdx) {
-        if (currentMode === 'settlement') board.pieces.settlements[vIdx] = currentPlayer;
-        else if (currentMode === 'city')  board.pieces.cities[vIdx]      = currentPlayer;
-        Render.drawPieces(svg, board, PLAYER_COLORS);
+        const { x, y } = board.graph.vertices[vIdx];
+        if (currentMode === 'settlement') {
+          const r = Board.canPlaceSettlement(board, vIdx, currentPlayer);
+          if (r.valid) {
+            board.pieces.settlements[vIdx] = currentPlayer;
+            Render.drawPieces(svg, board, PLAYER_COLORS);
+            clearInfoBar();
+          } else {
+            Render.flashInvalid(svg, x, y);
+            showError(r.reason);
+          }
+        } else if (currentMode === 'city') {
+          const r = Board.canUpgradeToCity(board, vIdx, currentPlayer);
+          if (r.valid) {
+            delete board.pieces.settlements[vIdx];   // city replaces settlement
+            board.pieces.cities[vIdx] = currentPlayer;
+            Render.drawPieces(svg, board, PLAYER_COLORS);
+            clearInfoBar();
+          } else {
+            Render.flashInvalid(svg, x, y);
+            showError(r.reason);
+          }
+        }
       }
 
-      // Edge click: place a road along that hex side
+      // Edge click: place a road with full Catan placement rules
       function onEdgeClick(eIdx) {
-        if (currentMode === 'road') board.pieces.roads[eIdx] = currentPlayer;
-        Render.drawPieces(svg, board, PLAYER_COLORS);
+        if (currentMode !== 'road') return;
+        const edge = board.graph.edges[eIdx];
+        const mx   = (edge.x1 + edge.x2) / 2;
+        const my   = (edge.y1 + edge.y2) / 2;
+        const r    = Board.canPlaceRoad(board, eIdx, currentPlayer);
+        if (r.valid) {
+          board.pieces.roads[eIdx] = currentPlayer;
+          Render.drawPieces(svg, board, PLAYER_COLORS);
+          clearInfoBar();
+        } else {
+          Render.flashInvalid(svg, mx, my);
+          showError(r.reason);
+        }
       }
 
       // Returns true when no two 6/8 tiles share an edge
@@ -297,7 +347,7 @@
       });
 
       document.getElementById('regenerate-btn').addEventListener('click', () => {
-        infoBar.textContent = 'Click a tile to inspect it or move the robber';
+        clearInfoBar();
         renderAndWire(Board.generateBoard());
       });
 
@@ -308,7 +358,7 @@
           if (isBalanced(b)) break;
           b = Board.generateBoard();
         }
-        infoBar.textContent = 'Click a tile to inspect it or move the robber';
+        clearInfoBar();
         renderAndWire(b);
       });
 

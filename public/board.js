@@ -196,5 +196,48 @@ window.Board = (() => {
     return board;
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph };
+  function canPlaceSettlement(board, vertexIdx, playerId) {
+    const { settlements, cities } = board.pieces;
+    if (settlements[vertexIdx] || cities[vertexIdx]) {
+      return { valid: false, reason: 'spot is taken' };
+    }
+    for (const adjV of (board.graph.vertexAdjacency[vertexIdx] || [])) {
+      if (settlements[adjV] || cities[adjV]) {
+        return { valid: false, reason: 'too close to another settlement' };
+      }
+    }
+    return { valid: true, reason: '' };
+  }
+
+  function canPlaceRoad(board, edgeIdx, playerId) {
+    const { roads, settlements, cities } = board.pieces;
+    if (roads[edgeIdx]) {
+      return { valid: false, reason: 'road already exists' };
+    }
+    const edge = board.graph.edges[edgeIdx];
+    for (const vIdx of [edge.vertexA, edge.vertexB]) {
+      if (settlements[vIdx] === playerId || cities[vIdx] === playerId) {
+        return { valid: true, reason: '' };
+      }
+      for (const adjEdgeIdx of (board.graph.vertexEdges[vIdx] || [])) {
+        if (adjEdgeIdx !== edgeIdx && roads[adjEdgeIdx] === playerId) {
+          return { valid: true, reason: '' };
+        }
+      }
+    }
+    return { valid: false, reason: 'road must connect to your settlement or another road' };
+  }
+
+  function canUpgradeToCity(board, vertexIdx, playerId) {
+    const { settlements, cities } = board.pieces;
+    if (cities[vertexIdx]) {
+      return { valid: false, reason: 'already a city' };
+    }
+    if (settlements[vertexIdx] !== playerId) {
+      return { valid: false, reason: "you don't have a settlement here" };
+    }
+    return { valid: true, reason: '' };
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, canPlaceSettlement, canPlaceRoad, canUpgradeToCity };
 })();
