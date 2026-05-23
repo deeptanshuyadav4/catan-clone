@@ -10,6 +10,12 @@ window.Board = (() => {
     forest: 'wood', hills: 'brick', fields: 'wheat', pasture: 'wool', mountains: 'ore', desert: null,
   };
 
+  const BUILD_COSTS = {
+    road:       { wood: 1, brick: 1 },
+    settlement: { wood: 1, brick: 1, wheat: 1, wool: 1 },
+    city:       { wheat: 2, ore: 3 },
+  };
+
   // Mulberry32: fast, seedable RNG. Returns a function that produces floats in [0, 1).
   // We use a seed so "Regenerate" can reproduce a board if the seed is shared.
   function mulberry32(seed) {
@@ -213,6 +219,8 @@ window.Board = (() => {
       playerOrder:            ['red', 'blue', 'white', 'orange'],
       turnPhase:              'roll',
       diceRolled:             false,
+      winner:                 null,
+      gameEnded:              false,
     };
     return board;
   }
@@ -376,5 +384,53 @@ window.Board = (() => {
     });
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn, advanceOpening, giveStartingResources };
+  function canAfford(board, playerId, buildingType) {
+    if (board.gameState.phase === 'opening') return { valid: true, reason: '' };
+    const cost = BUILD_COSTS[buildingType];
+    if (!cost) return { valid: true, reason: '' };
+    const res = board.players[playerId];
+    const missing = [];
+    for (const [r, amount] of Object.entries(cost)) {
+      const shortfall = amount - (res[r] || 0);
+      if (shortfall > 0) missing.push(`${shortfall} ${r}`);
+    }
+    return missing.length > 0
+      ? { valid: false, reason: `not enough resources — need ${missing.join(', ')}` }
+      : { valid: true, reason: '' };
+  }
+
+  function payCost(board, playerId, buildingType) {
+    if (board.gameState.phase === 'opening') return;
+    const cost = BUILD_COSTS[buildingType];
+    if (!cost) return;
+    const res = board.players[playerId];
+    for (const [r, amount] of Object.entries(cost)) {
+      res[r] = (res[r] || 0) - amount;
+    }
+  }
+
+  function calculateVP(board, playerId) {
+    let vp = 0;
+    for (const pid of Object.values(board.pieces.settlements)) {
+      if (pid === playerId) vp += 1;
+    }
+    for (const pid of Object.values(board.pieces.cities)) {
+      if (pid === playerId) vp += 2;
+    }
+    return vp;
+  }
+
+  function checkWinner(board) {
+    if (board.gameState.gameEnded) return board.gameState.winner;
+    for (const playerId of board.gameState.playerOrder) {
+      if (calculateVP(board, playerId) >= 10) {
+        board.gameState.winner    = playerId;
+        board.gameState.gameEnded = true;
+        return playerId;
+      }
+    }
+    return null;
+  }
+
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, BUILD_COSTS, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn, advanceOpening, giveStartingResources, canAfford, payCost, calculateVP, checkWinner };
 })();

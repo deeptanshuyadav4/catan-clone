@@ -67,24 +67,23 @@
       white-space: nowrap;
     }
 
-    /* Player color circles */
+    /* Player color circles — display-only, reflects current turn order */
     .player-btn {
       width: 24px;
       height: 24px;
       border-radius: 50%;
       border: 2px solid transparent;
       padding: 0;
-      cursor: pointer;
+      cursor: default;
+      pointer-events: none;
       box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-      transition: transform 0.1s, opacity 0.15s;
+      transition: opacity 0.15s;
     }
     .player-btn.active {
       border: 2px solid #000;
       outline: 2px solid white;
       outline-offset: 1px;
     }
-    .player-btn:not(:disabled):hover { transform: scale(1.18); }
-    .player-btn:disabled { cursor: not-allowed; }
 
     /* All top-bar action / mode buttons */
     .top-btn {
@@ -121,13 +120,22 @@
     }
     #end-turn-btn:hover:not(:disabled) { background: rgba(50, 170, 100, 0.75); }
 
-    /* Opening phase label — shown in place of Roll Dice / End Turn */
+    /* Opening phase label */
     #opening-label {
       font-size: 0.78rem;
       font-weight: bold;
       color: #ffd700;
       white-space: nowrap;
       display: none;
+    }
+
+    /* Build cost reference */
+    .cost-hint {
+      font-size: 0.64rem;
+      color: rgba(255, 255, 255, 0.48);
+      white-space: nowrap;
+      font-family: monospace;
+      letter-spacing: 0.2px;
     }
 
     /* ── MAIN (board + right panel) ───────────────────────────── */
@@ -271,9 +279,85 @@
     }
     .res-emoji { font-size: 0.82rem; line-height: 1; }
     .res-count { font-size: 0.78rem; font-weight: bold; }
+
+    /* ── WINNER OVERLAY ───────────────────────────────────────── */
+    #winner-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #winner-box {
+      background: #0d2035;
+      border: 3px solid #fff;
+      border-radius: 22px;
+      padding: 44px 72px;
+      text-align: center;
+      animation: winner-pop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes winner-pop {
+      from { transform: scale(0.55); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+
+    #winner-trophy {
+      font-size: 3.8rem;
+      margin-bottom: 14px;
+      display: block;
+      animation: trophy-float 1.1s ease-in-out infinite alternate;
+    }
+
+    @keyframes trophy-float {
+      from { transform: translateY(0px); }
+      to   { transform: translateY(-10px); }
+    }
+
+    #winner-title {
+      font-size: 3rem;
+      font-weight: bold;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+      text-shadow: 0 0 24px currentColor;
+    }
+
+    #winner-vp {
+      font-size: 1.05rem;
+      color: rgba(255, 255, 255, 0.65);
+      margin-bottom: 32px;
+    }
+
+    #play-again-btn {
+      background: white;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 14px;
+      padding: 13px 40px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #play-again-btn:hover  { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0,0,0,0.45); }
+    #play-again-btn:active { transform: translateY(0);    box-shadow: 0 3px 10px rgba(0,0,0,0.3);  }
   </style>
 </head>
 <body>
+
+  <!-- WINNER OVERLAY (hidden until someone reaches 10 VP) -->
+  <div id="winner-overlay">
+    <div id="winner-box">
+      <span id="winner-trophy">🏆</span>
+      <div id="winner-title">Red Wins!</div>
+      <div id="winner-vp">10 Victory Points</div>
+      <button id="play-again-btn">Play Again</button>
+    </div>
+  </div>
 
   <!-- TOP BAR -->
   <div id="top-bar">
@@ -296,6 +380,7 @@
       <button class="top-btn"        data-mode="city">City</button>
       <button class="top-btn"        data-mode="road">Road</button>
     </div>
+    <span class="cost-hint">Road: 1🪵1🧱 · Settlement: 1🪵1🧱1🌾1🐑 · City: 2🌾3⛰️</span>
 
     <div class="bar-sep"></div>
 
@@ -409,12 +494,12 @@
     document.addEventListener('DOMContentLoaded', () => {
 
       // ----- Element refs -----
-      const svg            = document.getElementById('board');
-      const infoBar        = document.getElementById('info-bar');
-      const seedLabel      = document.getElementById('seed-label');
-      const rollBtn        = document.getElementById('roll-dice-btn');
-      const endBtn         = document.getElementById('end-turn-btn');
-      const openingLabel   = document.getElementById('opening-label');
+      const svg          = document.getElementById('board');
+      const infoBar      = document.getElementById('info-bar');
+      const seedLabel    = document.getElementById('seed-label');
+      const rollBtn      = document.getElementById('roll-dice-btn');
+      const endBtn       = document.getElementById('end-turn-btn');
+      const openingLabel = document.getElementById('opening-label');
 
       // ----- Lookup tables -----
       const RESOURCE = {
@@ -428,12 +513,38 @@
       let graphVisible = false;
 
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
-      // currentPlayer tracks who the local user is placing pieces as.
-      // During opening this is forced to match snake-order; during main the
-      // player selects it manually.
+      const PLAYER_COLOR_GLOW = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
+
+      // ----- Winner overlay -----
+      function triggerWin(playerId) {
+        const vp    = Board.calculateVP(board, playerId);
+        const color = PLAYER_COLOR_GLOW[playerId];
+        const name  = playerId.charAt(0).toUpperCase() + playerId.slice(1);
+
+        document.getElementById('winner-title').textContent = `${name} Wins!`;
+        document.getElementById('winner-title').style.color = color;
+        document.getElementById('winner-vp').textContent    = `${vp} Victory Points`;
+
+        const box = document.getElementById('winner-box');
+        box.style.borderColor = color;
+        box.style.boxShadow   = `0 0 60px ${color}88, 0 0 120px ${color}44`;
+
+        // Re-trigger the pop animation by cloning the box
+        box.style.animation = 'none';
+        box.offsetHeight;   // force reflow
+        box.style.animation = '';
+
+        document.getElementById('winner-overlay').style.display = 'flex';
+      }
+
+      document.getElementById('play-again-btn').addEventListener('click', () => {
+        document.getElementById('winner-overlay').style.display = 'none';
+        clearInfoBar();
+        renderAndWire(Board.generateBoard());
+      });
 
       // ----- UI helpers -----
       function showError(reason) {
@@ -450,48 +561,50 @@
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
 
-      // Forces currentPlayer + currentMode to match game state during opening,
-      // and syncs the visual highlight + disabled state of all selector buttons.
+      // Syncs currentPlayer + currentMode from game state, and updates all button visuals.
+      // Player selector is always driven by turn order — manual clicks are disabled.
       function syncPlayerAndMode() {
         if (!board) return;
-        const isOpening = board.gameState.phase === 'opening';
+        const isOpening  = board.gameState.phase === 'opening';
+        const turnPlayer = Board.getCurrentPlayer(board);
 
-        if (isOpening) {
-          currentPlayer = Board.getCurrentPlayer(board);
-          currentMode   = board.gameState.openingStep;
-        }
+        // Always follow turn order — player selector is display-only
+        currentPlayer = turnPlayer;
+        if (isOpening) currentMode = board.gameState.openingStep;
 
-        // Player selector circles
+        // Player selector circles — highlight only, no interaction
         document.querySelectorAll('.player-btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.player === currentPlayer);
-          btn.disabled      = isOpening;
-          btn.style.opacity = isOpening ? '0.6' : '';
         });
 
-        // Mode buttons — also hide "City" during opening
+        // Mode buttons — hide City during opening; dim unaffordable in main phase
         document.querySelectorAll('[data-mode]').forEach(btn => {
-          const m = btn.dataset.mode;
-          if (m === 'city') {
-            btn.style.display = isOpening ? 'none' : '';
+          const m      = btn.dataset.mode;
+          const active = m === currentMode;
+          if (m === 'city') btn.style.display = isOpening ? 'none' : '';
+          btn.classList.toggle('active', active);
+          btn.disabled = isOpening;
+
+          if (isOpening) {
+            btn.style.opacity = active ? '' : '0.35';
+          } else {
+            btn.style.opacity = (!active && !Board.canAfford(board, turnPlayer, m).valid)
+              ? '0.5' : '';
           }
-          btn.classList.toggle('active', m === currentMode);
-          btn.disabled      = isOpening;
-          btn.style.opacity = isOpening ? (m === currentMode ? '' : '0.35') : '';
         });
       }
 
-      // Updates player-panel glow, TURN badge, and button enable/disable states.
+      // Updates player-panel glow, TURN badge, and Roll/End button states.
       function updateTurnUI() {
         if (!board) return;
-        const isOpening  = board.gameState.phase === 'opening';
-        const active     = Board.getCurrentPlayer(board);
-        const colorMap   = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
+        const isOpening = board.gameState.phase === 'opening';
+        const active    = Board.getCurrentPlayer(board);
 
         // Player panel glow + TURN badge
         document.querySelectorAll('.player-panel').forEach(panel => {
           const p        = panel.dataset.player;
           const isActive = p === active;
-          panel.style.boxShadow = isActive ? `0 0 14px 2px ${colorMap[p]}` : '';
+          panel.style.boxShadow = isActive ? `0 0 14px 2px ${PLAYER_COLOR_GLOW[p]}` : '';
           panel.style.transform = isActive ? 'scale(1.04)' : '';
           const badge = panel.querySelector('.turn-badge');
           if (badge) badge.style.display = isActive ? 'inline' : 'none';
@@ -499,19 +612,17 @@
 
         // Show opening label OR roll-dice / end-turn buttons
         if (isOpening) {
-          rollBtn.style.display    = 'none';
-          endBtn.style.display     = 'none';
+          rollBtn.style.display      = 'none';
+          endBtn.style.display       = 'none';
           openingLabel.style.display = '';
-          const gs          = board.gameState;
-          const roundNum    = gs.openingTurn < 4 ? 1 : 2;
-          const stepText    = gs.openingStep === 'settlement'
-            ? `settlement ${roundNum} of 2`
-            : 'road';
-          openingLabel.textContent  =
-            `Opening — ${active}: place ${stepText}`;
+          const gs       = board.gameState;
+          const roundNum = gs.openingTurn < 4 ? 1 : 2;
+          openingLabel.textContent = gs.openingStep === 'settlement'
+            ? `Opening — ${active}: settlement ${roundNum} of 2`
+            : `Opening — ${active}: place road`;
         } else {
-          rollBtn.style.display    = '';
-          endBtn.style.display     = '';
+          rollBtn.style.display      = '';
+          endBtn.style.display       = '';
           openingLabel.style.display = 'none';
 
           const isRollPhase  = board.gameState.turnPhase === 'roll';
@@ -525,15 +636,14 @@
         syncPlayerAndMode();
       }
 
-      // Updates the VP and resource counts in all four player panels.
+      // Updates VP (via calculateVP) and resource counts in all four player panels.
       function updatePlayerPanels() {
         if (!board) return;
         ['red', 'blue', 'white', 'orange'].forEach(player => {
           const panel = document.querySelector(`.player-panel[data-player="${player}"]`);
           if (!panel) return;
-          const sCount = Object.values(board.pieces.settlements).filter(p => p === player).length;
-          const cCount = Object.values(board.pieces.cities).filter(p => p === player).length;
-          panel.querySelector('.player-vp').textContent = `${sCount + cCount * 2} VP`;
+          panel.querySelector('.player-vp').textContent =
+            `${Board.calculateVP(board, player)} VP`;
           const res = board.players[player];
           panel.querySelectorAll('.res-count').forEach(el => {
             el.textContent = res[el.dataset.res] ?? 0;
@@ -585,9 +695,11 @@
       }
 
       function onVertexClick(vIdx) {
+        if (board.gameState.gameEnded) return;
+
         const isOpening = board.gameState.phase === 'opening';
 
-        // Turn-order gate
+        // Turn-order gates
         if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building');
           return;
@@ -598,8 +710,6 @@
           showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
           return;
         }
-
-        // During opening, clicking a vertex while waiting for a road is an error
         if (isOpening && board.gameState.openingStep !== 'settlement') {
           const { x, y } = board.graph.vertices[vIdx];
           Render.flashInvalid(svg, x, y);
@@ -610,48 +720,60 @@
         const { x, y } = board.graph.vertices[vIdx];
 
         if (currentMode === 'settlement') {
-          const r = Board.canPlaceSettlement(board, vIdx, currentPlayer);
-          if (r.valid) {
-            board.pieces.settlements[vIdx] = currentPlayer;
+          const place = Board.canPlaceSettlement(board, vIdx, currentPlayer);
+          if (!place.valid) { Render.flashInvalid(svg, x, y); showError(place.reason); return; }
 
-            if (isOpening) {
-              board.gameState.lastSettlementVertex = vIdx;
-              if (board.gameState.openingTurn >= 4) {
-                Board.giveStartingResources(board, vIdx, currentPlayer);
-              }
-              Board.advanceOpening(board);   // openingStep → 'road'
-              syncPlayerAndMode();
+          const afford = Board.canAfford(board, currentPlayer, 'settlement');
+          if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
+
+          board.pieces.settlements[vIdx] = currentPlayer;
+          Board.payCost(board, currentPlayer, 'settlement');
+
+          if (isOpening) {
+            board.gameState.lastSettlementVertex = vIdx;
+            if (board.gameState.openingTurn >= 4) {
+              Board.giveStartingResources(board, vIdx, currentPlayer);
             }
+            Board.advanceOpening(board);
+            syncPlayerAndMode();
+          }
 
-            Render.drawPieces(svg, board, PLAYER_COLORS);
-            updatePlayerPanels();
-            updateTurnUI();
-            clearInfoBar();
-          } else {
-            Render.flashInvalid(svg, x, y);
-            showError(r.reason);
-          }
+          Render.drawPieces(svg, board, PLAYER_COLORS);
+          updatePlayerPanels();
+          updateTurnUI();
+          clearInfoBar();
+
+          const winner = Board.checkWinner(board);
+          if (winner) { triggerWin(winner); return; }
+
         } else if (currentMode === 'city') {
-          const r = Board.canUpgradeToCity(board, vIdx, currentPlayer);
-          if (r.valid) {
-            delete board.pieces.settlements[vIdx];
-            board.pieces.cities[vIdx] = currentPlayer;
-            Render.drawPieces(svg, board, PLAYER_COLORS);
-            updatePlayerPanels();
-            clearInfoBar();
-          } else {
-            Render.flashInvalid(svg, x, y);
-            showError(r.reason);
-          }
+          const place = Board.canUpgradeToCity(board, vIdx, currentPlayer);
+          if (!place.valid) { Render.flashInvalid(svg, x, y); showError(place.reason); return; }
+
+          const afford = Board.canAfford(board, currentPlayer, 'city');
+          if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
+
+          delete board.pieces.settlements[vIdx];
+          board.pieces.cities[vIdx] = currentPlayer;
+          Board.payCost(board, currentPlayer, 'city');
+
+          Render.drawPieces(svg, board, PLAYER_COLORS);
+          updatePlayerPanels();
+          updateTurnUI();
+          clearInfoBar();
+
+          const winner = Board.checkWinner(board);
+          if (winner) { triggerWin(winner); return; }
         }
       }
 
       function onEdgeClick(eIdx) {
+        if (board.gameState.gameEnded) return;
         if (currentMode !== 'road') return;
 
         const isOpening = board.gameState.phase === 'opening';
 
-        // Turn-order gate
+        // Turn-order gates
         if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building');
           return;
@@ -662,8 +784,6 @@
           showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
           return;
         }
-
-        // During opening, clicking a road while waiting for a settlement is an error
         if (isOpening && board.gameState.openingStep !== 'road') {
           const edge = board.graph.edges[eIdx];
           Render.flashInvalid(svg, (edge.x1 + edge.x2) / 2, (edge.y1 + edge.y2) / 2);
@@ -674,31 +794,34 @@
         const edge = board.graph.edges[eIdx];
         const mx   = (edge.x1 + edge.x2) / 2;
         const my   = (edge.y1 + edge.y2) / 2;
-        const r    = Board.canPlaceRoad(board, eIdx, currentPlayer);
 
-        if (r.valid) {
-          board.pieces.roads[eIdx] = currentPlayer;
+        const place = Board.canPlaceRoad(board, eIdx, currentPlayer);
+        if (!place.valid) { Render.flashInvalid(svg, mx, my); showError(place.reason); return; }
 
-          if (isOpening) {
-            Board.advanceOpening(board);
-            const transitioned = board.gameState.phase === 'main';
-            syncPlayerAndMode();
-            Render.drawPieces(svg, board, PLAYER_COLORS);
-            updatePlayerPanels();
-            updateTurnUI();
-            if (transitioned) {
-              infoBar.style.color = '#7fffb0';
-              infoBar.textContent = 'Opening complete! Red rolls first.';
-            }
-            return;
-          }
+        const afford = Board.canAfford(board, currentPlayer, 'road');
+        if (!afford.valid) { Render.flashInvalid(svg, mx, my); showError(afford.reason); return; }
 
+        board.pieces.roads[eIdx] = currentPlayer;
+        Board.payCost(board, currentPlayer, 'road');
+
+        if (isOpening) {
+          Board.advanceOpening(board);
+          const transitioned = board.gameState.phase === 'main';
+          syncPlayerAndMode();
           Render.drawPieces(svg, board, PLAYER_COLORS);
-          clearInfoBar();
-        } else {
-          Render.flashInvalid(svg, mx, my);
-          showError(r.reason);
+          updatePlayerPanels();
+          updateTurnUI();
+          if (transitioned) {
+            infoBar.style.color = '#7fffb0';
+            infoBar.textContent = 'Opening complete! Red rolls first.';
+          }
+          return;
         }
+
+        Render.drawPieces(svg, board, PLAYER_COLORS);
+        updatePlayerPanels();
+        updateTurnUI();
+        clearInfoBar();
       }
 
       // ----- Board utility -----
@@ -718,15 +841,6 @@
         applyGraphVisibility();
       });
 
-      document.querySelectorAll('.player-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (btn.disabled) return;
-          document.querySelectorAll('.player-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentPlayer = btn.dataset.player;
-        });
-      });
-
       document.querySelectorAll('[data-mode]').forEach(btn => {
         btn.addEventListener('click', () => {
           if (btn.disabled) return;
@@ -744,8 +858,11 @@
           white:  { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
           orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
         };
+        board.gameState.winner    = null;
+        board.gameState.gameEnded = false;
         Render.drawPieces(svg, board, PLAYER_COLORS);
         updatePlayerPanels();
+        updateTurnUI();
       });
 
       rollBtn.addEventListener('click', () => {
