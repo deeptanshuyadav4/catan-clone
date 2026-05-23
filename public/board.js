@@ -37,6 +37,51 @@ window.Board = (() => {
     return arr;
   }
 
+  // Generates 9 ports placed on evenly-spaced coastal edges (edges bordering only one tile).
+  // Types: 4×any(3:1) + 5×specific(2:1, one per resource). Uses a separate seeded RNG so
+  // port layout is reproducible but independent from tile/number shuffles.
+  function generatePorts(graph, rng) {
+    // Coastal edges touch exactly one hex tile
+    const coastal = graph.edges
+      .map((e, i) => ({ ...e, idx: i }))
+      .filter(e => e.tiles.length === 1);
+
+    // Sort clockwise by angle of edge midpoint from board center
+    coastal.sort((a, b) => {
+      const ax = Math.atan2((a.y1 + a.y2) / 2 - CENTER_Y, (a.x1 + a.x2) / 2 - CENTER_X);
+      const bx = Math.atan2((b.y1 + b.y2) / 2 - CENTER_Y, (b.x1 + b.x2) / 2 - CENTER_X);
+      return ax - bx;
+    });
+
+    // Pick 9 evenly-spaced coastal edges
+    const n = coastal.length;
+    const chosen = [];
+    for (let i = 0; i < 9; i++) chosen.push(coastal[Math.round(i * n / 9) % n]);
+
+    const portTypes = shuffle(
+      ['any', 'any', 'any', 'any', 'wood', 'brick', 'wheat', 'wool', 'ore'],
+      rng
+    );
+
+    return chosen.map((edge, i) => {
+      const mx   = (edge.x1 + edge.x2) / 2;
+      const my   = (edge.y1 + edge.y2) / 2;
+      const dx   = mx - CENTER_X;
+      const dy   = my - CENTER_Y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const type = portTypes[i];
+      return {
+        edgeIdx: edge.idx,
+        type,
+        rate:    type === 'any' ? 3 : 2,
+        iconX:   Math.round(mx + (dx / dist) * 26),
+        iconY:   Math.round(my + (dy / dist) * 26),
+        vertexA: edge.vertexA,
+        vertexB: edge.vertexB,
+      };
+    });
+  }
+
   // Build the array of {x, y, row, col} centers for all 37 hexes.
   // Row 3 (the widest, 7 hexes) sits at CENTER_Y; rows above/below shift by ROW_HEIGHT each.
   // Within each row the hexes are evenly spaced HEX_WIDTH apart, centered on CENTER_X.
@@ -202,6 +247,7 @@ window.Board = (() => {
   function generateBoardWithGraph(seed) {
     const board  = _generateBoard(seed);
     board.graph  = computeGraph(board.positions);
+    board.ports  = generatePorts(board.graph, mulberry32(board.seed ^ 0x9E3779B9));
     board.pieces = { settlements: {}, cities: {}, roads: {} };
     board.players = {
       red:    { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
@@ -420,6 +466,33 @@ window.Board = (() => {
     return vp;
   }
 
+  function getPlayerPorts(board, playerId) {
+    if (!board.ports) return [];
+    const { settlements, cities } = board.pieces;
+    return board.ports.filter(p =>
+      settlements[p.vertexA] === playerId || cities[p.vertexA] === playerId ||
+      settlements[p.vertexB] === playerId || cities[p.vertexB] === playerId
+    );
+  }
+
+  function getBestTradeRate(board, playerId, resource) {
+    let rate = 4;
+    for (const port of getPlayerPorts(board, playerId)) {
+      if ((port.type === 'any' || port.type === resource) && port.rate < rate) rate = port.rate;
+    }
+    return rate;
+  }
+
+  function tradeWithBank(board, playerId, giveResource, takeResource) {
+    if (giveResource === takeResource) return { valid: false, reason: "can't trade a resource for itself" };
+    const rate = getBestTradeRate(board, playerId, giveResource);
+    const res  = board.players[playerId];
+    if ((res[giveResource] || 0) < rate) return { valid: false, reason: `need ${rate} ${giveResource} to trade` };
+    res[giveResource] -= rate;
+    res[takeResource]  = (res[takeResource] || 0) + 1;
+    return { valid: true, rate, reason: '' };
+  }
+
   function checkWinner(board) {
     if (board.gameState.gameEnded) return board.gameState.winner;
     for (const playerId of board.gameState.playerOrder) {
@@ -432,5 +505,5 @@ window.Board = (() => {
     return null;
   }
 
-  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, BUILD_COSTS, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn, advanceOpening, giveStartingResources, canAfford, payCost, calculateVP, checkWinner };
+  return { generateBoard: generateBoardWithGraph, getNeighbors, computeGraph, TILE_RESOURCE, BUILD_COSTS, canPlaceSettlement, canPlaceRoad, canUpgradeToCity, rollDice, distributeResources, getCurrentPlayer, endTurn, advanceOpening, giveStartingResources, canAfford, payCost, calculateVP, checkWinner, getPlayerPorts, getBestTradeRate, tradeWithBank };
 })();

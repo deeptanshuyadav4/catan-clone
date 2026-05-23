@@ -55,6 +55,8 @@ window.Render = (() => {
     forest: '🌲', hills: '🧱', pasture: '🐑', fields: '🌾', mountains: '⛰️', desert: '🌵',
   };
 
+  const PORT_RESOURCE_EMOJI = { wood: '🪵', brick: '🧱', wheat: '🌾', wool: '🐑', ore: '⛏️' };
+
   function drawTileIcon(svgElement, pos, tileType) {
     const txt = el('text', {
       x:                  pos.x,
@@ -371,6 +373,58 @@ window.Render = (() => {
     setTimeout(() => txt.remove(), 650);
   }
 
+  // Draws port markers: dashed anchor lines + ship icon + rate label.
+  // Called right after renderBoard (which wipes the SVG), so appending is safe — no
+  // groups exist yet that would cover the port layer.
+  function drawPorts(svgElement, board) {
+    const existing = svgElement.querySelector('#ports-layer');
+    if (existing) existing.remove();
+    if (!board.ports || board.ports.length === 0) return;
+
+    const g = el('g', { id: 'ports-layer', 'pointer-events': 'none' });
+
+    for (const port of board.ports) {
+      const { iconX, iconY, vertexA, vertexB, type } = port;
+      const vA = board.graph.vertices[vertexA];
+      const vB = board.graph.vertices[vertexB];
+
+      // Dashed lines from icon to each anchor vertex
+      for (const v of [vA, vB]) {
+        g.appendChild(el('line', {
+          x1: iconX, y1: iconY, x2: v.x, y2: v.y,
+          stroke:              'rgba(255,255,255,0.5)',
+          'stroke-width':      1.2,
+          'stroke-dasharray':  '3,3',
+        }));
+      }
+
+      // Ship emoji
+      const ship = el('text', {
+        x: iconX, y: iconY,
+        'text-anchor':       'middle',
+        'dominant-baseline': 'middle',
+        'font-size':         16,
+      });
+      ship.textContent = '⛵';
+      g.appendChild(ship);
+
+      // Rate label below ship
+      const label = el('text', {
+        x: iconX, y: iconY + 14,
+        'text-anchor':       'middle',
+        'dominant-baseline': 'middle',
+        'font-size':         9,
+        'font-weight':       'bold',
+        'font-family':       'Arial, sans-serif',
+        fill:                type === 'any' ? '#ffff99' : '#ffffff',
+      });
+      label.textContent = type === 'any' ? '3:1' : `${PORT_RESOURCE_EMOJI[type]} 2:1`;
+      g.appendChild(label);
+    }
+
+    svgElement.appendChild(g);
+  }
+
   const DIE_PIPS = {
     1: [[25, 25]],
     2: [[13, 13], [37, 37]],
@@ -402,5 +456,5 @@ window.Render = (() => {
     svgElement.appendChild(g);
   }
 
-  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid, drawDice };
+  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, drawPorts, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid, drawDice };
 })();

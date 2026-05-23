@@ -345,9 +345,128 @@
     }
     #play-again-btn:hover  { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0,0,0,0.45); }
     #play-again-btn:active { transform: translateY(0);    box-shadow: 0 3px 10px rgba(0,0,0,0.3);  }
+
+    /* ── TRADE BUTTON ─────────────────────────────────────────── */
+    #trade-btn {
+      background: rgba(100, 180, 255, 0.18);
+      border-color: rgba(100, 180, 255, 0.4);
+    }
+    #trade-btn:hover:not(:disabled) { background: rgba(100, 180, 255, 0.32); }
+
+    /* ── TRADE OVERLAY ────────────────────────────────────────── */
+    #trade-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 150;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #trade-modal {
+      background: #0d2035;
+      border: 2px solid rgba(255, 255, 255, 0.28);
+      border-radius: 16px;
+      padding: 24px 28px;
+      min-width: 340px;
+      color: white;
+    }
+
+    #trade-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .trade-section { margin-bottom: 14px; }
+
+    .trade-section-label {
+      font-size: 0.68rem;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.52);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+
+    .trade-res-row { display: flex; gap: 6px; }
+
+    .trade-res-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 8px 4px;
+      cursor: pointer;
+      color: white;
+      transition: background 0.1s, border-color 0.1s, opacity 0.15s;
+    }
+    .trade-res-btn:hover:not(:disabled):not(.selected) { background: rgba(255, 255, 255, 0.2); }
+    .trade-res-btn.selected { border-color: #ffd700; background: rgba(255, 215, 0, 0.18); }
+    .trade-res-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .trade-res-btn .t-icon  { font-size: 1.2rem; line-height: 1; }
+    .trade-res-btn .t-count { font-size: 0.78rem; font-weight: bold; }
+    .trade-res-btn .t-rate  { font-size: 0.6rem; color: #aad4ff; }
+    .trade-res-btn .t-name  { font-size: 0.62rem; color: rgba(255, 255, 255, 0.7); }
+
+    #trade-error-msg {
+      min-height: 1.1em;
+      font-size: 0.72rem;
+      color: #ff8080;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .trade-actions { display: flex; gap: 8px; justify-content: center; }
+
+    .trade-actions button {
+      padding: 8px 24px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.82rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #trade-confirm-btn { background: white; color: #1a1a2e; }
+    #trade-confirm-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+    #trade-cancel-btn {
+      background: rgba(255, 255, 255, 0.13);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+    }
+    #trade-cancel-btn:hover { background: rgba(255, 255, 255, 0.22); }
   </style>
 </head>
 <body>
+
+  <!-- TRADE OVERLAY -->
+  <div id="trade-overlay">
+    <div id="trade-modal">
+      <div id="trade-title">⚖️ Trade with Bank</div>
+      <div class="trade-section">
+        <div class="trade-section-label">Give</div>
+        <div id="give-row" class="trade-res-row"></div>
+      </div>
+      <div class="trade-section">
+        <div class="trade-section-label">Take</div>
+        <div id="take-row" class="trade-res-row"></div>
+      </div>
+      <div id="trade-error-msg"></div>
+      <div class="trade-actions">
+        <button id="trade-confirm-btn" disabled>Confirm</button>
+        <button id="trade-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- WINNER OVERLAY (hidden until someone reaches 10 VP) -->
   <div id="winner-overlay">
@@ -387,6 +506,7 @@
     <button class="top-btn" id="clear-pieces-btn">Clear</button>
     <button class="top-btn" id="roll-dice-btn">🎲 Roll Dice</button>
     <button class="top-btn" id="end-turn-btn">End Turn →</button>
+    <button class="top-btn" id="trade-btn">⚖️ Trade</button>
     <span id="opening-label"></span>
     <button class="top-btn" id="regenerate-btn">Regenerate</button>
     <button class="top-btn" id="balanced-btn">Balanced</button>
@@ -499,6 +619,7 @@
       const seedLabel    = document.getElementById('seed-label');
       const rollBtn      = document.getElementById('roll-dice-btn');
       const endBtn       = document.getElementById('end-turn-btn');
+      const tradeBtn     = document.getElementById('trade-btn');
       const openingLabel = document.getElementById('opening-label');
 
       // ----- Lookup tables -----
@@ -507,6 +628,10 @@
         hills: 'Brick', mountains: 'Ore', desert: null,
       };
       const PROB = { 2:1, 3:2, 4:3, 5:4, 6:5, 8:5, 9:4, 10:3, 11:2, 12:1 };
+
+      const RESOURCES = ['wood', 'brick', 'wheat', 'wool', 'ore'];
+      const RES_EMOJI = { wood: '🪵', brick: '🧱', wheat: '🌾', wool: '🐑', ore: '⛏️' };
+      const RES_NAME  = { wood: 'Wood', brick: 'Brick', wheat: 'Wheat', wool: 'Wool', ore: 'Ore' };
 
       // ----- Board state -----
       let board;
@@ -610,10 +735,11 @@
           if (badge) badge.style.display = isActive ? 'inline' : 'none';
         });
 
-        // Show opening label OR roll-dice / end-turn buttons
+        // Show opening label OR roll-dice / end-turn / trade buttons
         if (isOpening) {
           rollBtn.style.display      = 'none';
           endBtn.style.display       = 'none';
+          tradeBtn.style.display     = 'none';
           openingLabel.style.display = '';
           const gs       = board.gameState;
           const roundNum = gs.openingTurn < 4 ? 1 : 2;
@@ -623,14 +749,17 @@
         } else {
           rollBtn.style.display      = '';
           endBtn.style.display       = '';
+          tradeBtn.style.display     = '';
           openingLabel.style.display = 'none';
 
           const isRollPhase  = board.gameState.turnPhase === 'roll';
           const isBuildPhase = board.gameState.turnPhase === 'build';
-          rollBtn.disabled      = !isRollPhase;
-          rollBtn.style.opacity = isRollPhase  ? '' : '0.4';
-          endBtn.disabled       = !isBuildPhase;
-          endBtn.style.opacity  = isBuildPhase ? '' : '0.4';
+          rollBtn.disabled       = !isRollPhase;
+          rollBtn.style.opacity  = isRollPhase  ? '' : '0.4';
+          endBtn.disabled        = !isBuildPhase;
+          endBtn.style.opacity   = isBuildPhase ? '' : '0.4';
+          tradeBtn.disabled      = !isBuildPhase;
+          tradeBtn.style.opacity = isBuildPhase ? '' : '0.4';
         }
 
         syncPlayerAndMode();
@@ -660,6 +789,7 @@
       function renderAndWire(b) {
         board = b;
         Render.renderBoard(svg, board);
+        Render.drawPorts(svg, board);
         Render.attachClickHandlers(svg, board, onTileClick);
         Render.drawGraphDebug(svg, board);
         applyGraphVisibility();
@@ -908,6 +1038,103 @@
         }
         clearInfoBar();
         renderAndWire(b);
+      });
+
+      // ----- Trade modal -----
+      let tradeGiveRes = null;
+      let tradeTakeRes = null;
+
+      function openTradeModal() {
+        tradeGiveRes = null;
+        tradeTakeRes = null;
+        document.getElementById('trade-error-msg').textContent = '';
+        document.getElementById('trade-confirm-btn').disabled = true;
+
+        const player = Board.getCurrentPlayer(board);
+        const res    = board.players[player];
+
+        // Give row: show count + best rate; disable if player can't afford
+        const giveRow = document.getElementById('give-row');
+        giveRow.innerHTML = '';
+        for (const r of RESOURCES) {
+          const rate    = Board.getBestTradeRate(board, player, r);
+          const count   = res[r] || 0;
+          const canTrade = count >= rate;
+          const btn = document.createElement('button');
+          btn.className = 'trade-res-btn';
+          btn.dataset.res = r;
+          btn.disabled = !canTrade;
+          btn.innerHTML = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-count">${count}</span><span class="t-rate">${rate}:1</span>`;
+          btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            tradeGiveRes = r;
+            giveRow.querySelectorAll('.trade-res-btn').forEach(b => b.classList.toggle('selected', b.dataset.res === r));
+            refreshTradeConfirm();
+          });
+          giveRow.appendChild(btn);
+        }
+
+        // Take row: just the resource icon + name
+        const takeRow = document.getElementById('take-row');
+        takeRow.innerHTML = '';
+        for (const r of RESOURCES) {
+          const btn = document.createElement('button');
+          btn.className = 'trade-res-btn';
+          btn.dataset.res = r;
+          btn.innerHTML = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-name">${RES_NAME[r]}</span>`;
+          btn.addEventListener('click', () => {
+            tradeTakeRes = r;
+            takeRow.querySelectorAll('.trade-res-btn').forEach(b => b.classList.toggle('selected', b.dataset.res === r));
+            refreshTradeConfirm();
+          });
+          takeRow.appendChild(btn);
+        }
+
+        document.getElementById('trade-overlay').style.display = 'flex';
+      }
+
+      function refreshTradeConfirm() {
+        const confirmBtn = document.getElementById('trade-confirm-btn');
+        const errMsg     = document.getElementById('trade-error-msg');
+        if (!tradeGiveRes || !tradeTakeRes) {
+          confirmBtn.disabled = true;
+          errMsg.textContent  = '';
+          return;
+        }
+        if (tradeGiveRes === tradeTakeRes) {
+          confirmBtn.disabled = true;
+          errMsg.textContent  = "Can't trade a resource for itself";
+          return;
+        }
+        confirmBtn.disabled = false;
+        errMsg.textContent  = '';
+      }
+
+      function closeTrade() {
+        document.getElementById('trade-overlay').style.display = 'none';
+      }
+
+      tradeBtn.addEventListener('click', () => { if (!tradeBtn.disabled) openTradeModal(); });
+
+      document.getElementById('trade-overlay').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeTrade();
+      });
+
+      document.getElementById('trade-cancel-btn').addEventListener('click', closeTrade);
+
+      document.getElementById('trade-confirm-btn').addEventListener('click', () => {
+        if (!tradeGiveRes || !tradeTakeRes) return;
+        const result = Board.tradeWithBank(board, currentPlayer, tradeGiveRes, tradeTakeRes);
+        if (!result.valid) {
+          document.getElementById('trade-error-msg').textContent = result.reason;
+          return;
+        }
+        closeTrade();
+        updatePlayerPanels();
+        updateTurnUI();
+        infoBar.style.color = '#7fffb0';
+        infoBar.textContent = `Traded ${result.rate} ${tradeGiveRes} → 1 ${tradeTakeRes}`;
+        setTimeout(clearInfoBar, 2500);
       });
 
       // ----- Initial render -----
