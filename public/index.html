@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Catan Clone</title>
 
+  <script src="board-core.js" defer></script>
   <script src="board.js" defer></script>
   <script src="render.js" defer></script>
 
@@ -633,8 +634,8 @@
       const RES_EMOJI = { wood: '🪵', brick: '🧱', wheat: '🌾', wool: '🐑', ore: '⛏️' };
       const RES_NAME  = { wood: 'Wood', brick: 'Brick', wheat: 'Wheat', wool: 'Wool', ore: 'Ore' };
 
-      // ----- Board state -----
-      let board;
+      // ----- Board state (driven by server) -----
+      let board        = null;
       let graphVisible = false;
 
       const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
@@ -668,7 +669,7 @@
       document.getElementById('play-again-btn').addEventListener('click', () => {
         document.getElementById('winner-overlay').style.display = 'none';
         clearInfoBar();
-        renderAndWire(Board.generateBoard());
+        socket.emit('action', { type: 'regenerate' });
       });
 
       // ----- UI helpers -----
@@ -797,6 +798,7 @@
         Render.attachVertexClickHandlers(svg, board, onVertexClick);
         Render.attachEdgeClickHandlers(svg, board, onEdgeClick);
         seedLabel.textContent = `Seed: ${board.seed}`;
+        if (board.lastRoll) Render.drawDice(svg, board.lastRoll.d1, board.lastRoll.d2);
         updatePlayerPanels();
         updateTurnUI();
       }
@@ -815,8 +817,7 @@
           return;
         }
 
-        board.robber = idx;
-        renderAndWire(board);
+        socket.emit('action', { type: 'move_robber', tileIndex: idx });
 
         const resource = RESOURCE[type];
         const prob     = PROB[number] || 0;
@@ -853,28 +854,12 @@
           const place = Board.canPlaceSettlement(board, vIdx, currentPlayer);
           if (!place.valid) { Render.flashInvalid(svg, x, y); showError(place.reason); return; }
 
-          const afford = Board.canAfford(board, currentPlayer, 'settlement');
-          if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
-
-          board.pieces.settlements[vIdx] = currentPlayer;
-          Board.payCost(board, currentPlayer, 'settlement');
-
-          if (isOpening) {
-            board.gameState.lastSettlementVertex = vIdx;
-            if (board.gameState.openingTurn >= 4) {
-              Board.giveStartingResources(board, vIdx, currentPlayer);
-            }
-            Board.advanceOpening(board);
-            syncPlayerAndMode();
+          if (!isOpening) {
+            const afford = Board.canAfford(board, currentPlayer, 'settlement');
+            if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
           }
 
-          Render.drawPieces(svg, board, PLAYER_COLORS);
-          updatePlayerPanels();
-          updateTurnUI();
-          clearInfoBar();
-
-          const winner = Board.checkWinner(board);
-          if (winner) { triggerWin(winner); return; }
+          socket.emit('action', { type: 'place_settlement', vertex: vIdx, playerId: currentPlayer });
 
         } else if (currentMode === 'city') {
           const place = Board.canUpgradeToCity(board, vIdx, currentPlayer);
@@ -883,17 +868,7 @@
           const afford = Board.canAfford(board, currentPlayer, 'city');
           if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
 
-          delete board.pieces.settlements[vIdx];
-          board.pieces.cities[vIdx] = currentPlayer;
-          Board.payCost(board, currentPlayer, 'city');
-
-          Render.drawPieces(svg, board, PLAYER_COLORS);
-          updatePlayerPanels();
-          updateTurnUI();
-          clearInfoBar();
-
-          const winner = Board.checkWinner(board);
-          if (winner) { triggerWin(winner); return; }
+          socket.emit('action', { type: 'place_city', vertex: vIdx, playerId: currentPlayer });
         }
       }
 
@@ -928,41 +903,12 @@
         const place = Board.canPlaceRoad(board, eIdx, currentPlayer);
         if (!place.valid) { Render.flashInvalid(svg, mx, my); showError(place.reason); return; }
 
-        const afford = Board.canAfford(board, currentPlayer, 'road');
-        if (!afford.valid) { Render.flashInvalid(svg, mx, my); showError(afford.reason); return; }
-
-        board.pieces.roads[eIdx] = currentPlayer;
-        Board.payCost(board, currentPlayer, 'road');
-
-        if (isOpening) {
-          Board.advanceOpening(board);
-          const transitioned = board.gameState.phase === 'main';
-          syncPlayerAndMode();
-          Render.drawPieces(svg, board, PLAYER_COLORS);
-          updatePlayerPanels();
-          updateTurnUI();
-          if (transitioned) {
-            infoBar.style.color = '#7fffb0';
-            infoBar.textContent = 'Opening complete! Red rolls first.';
-          }
-          return;
+        if (!isOpening) {
+          const afford = Board.canAfford(board, currentPlayer, 'road');
+          if (!afford.valid) { Render.flashInvalid(svg, mx, my); showError(afford.reason); return; }
         }
 
-        Render.drawPieces(svg, board, PLAYER_COLORS);
-        updatePlayerPanels();
-        updateTurnUI();
-        clearInfoBar();
-      }
-
-      // ----- Board utility -----
-      function isBalanced(b) {
-        for (let i = 0; i < b.tiles.length; i++) {
-          if (b.numbers[i] !== 6 && b.numbers[i] !== 8) continue;
-          for (const n of Board.getNeighbors(i, b.positions)) {
-            if (b.numbers[n] === 6 || b.numbers[n] === 8) return false;
-          }
-        }
-        return true;
+        socket.emit('action', { type: 'place_road', edge: eIdx, playerId: currentPlayer });
       }
 
       // ----- Button handlers -----
@@ -981,63 +927,27 @@
       });
 
       document.getElementById('clear-pieces-btn').addEventListener('click', () => {
-        board.pieces = { settlements: {}, cities: {}, roads: {} };
-        board.players = {
-          red:    { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
-          blue:   { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
-          white:  { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
-          orange: { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
-        };
-        board.gameState.winner    = null;
-        board.gameState.gameEnded = false;
-        Render.drawPieces(svg, board, PLAYER_COLORS);
-        updatePlayerPanels();
-        updateTurnUI();
+        socket.emit('action', { type: 'clear_pieces' });
       });
 
       rollBtn.addEventListener('click', () => {
-        if (board.gameState.turnPhase !== 'roll') {
-          showError('already rolled — end your turn first');
-          return;
-        }
-        const roll   = Board.rollDice();
-        Render.drawDice(svg, roll.d1, roll.d2);
-        const result = Board.distributeResources(board, roll.total);
-        board.gameState.diceRolled = true;
-        board.gameState.turnPhase  = 'build';
-        const entry = document.createElement('p');
-        entry.textContent = result.log;
-        const rollLog = document.getElementById('roll-log');
-        rollLog.insertBefore(entry, rollLog.firstChild);
-        Render.drawPieces(svg, board, PLAYER_COLORS);
-        updatePlayerPanels();
-        updateTurnUI();
+        if (!board || board.gameState.turnPhase !== 'roll') return;
+        socket.emit('action', { type: 'roll_dice' });
       });
 
       endBtn.addEventListener('click', () => {
-        if (board.gameState.turnPhase !== 'build') {
-          showError('must roll dice before ending your turn');
-          return;
-        }
-        Board.endTurn(board);
-        clearInfoBar();
-        updateTurnUI();
-        updatePlayerPanels();
+        if (!board || board.gameState.turnPhase !== 'build') return;
+        socket.emit('action', { type: 'end_turn' });
       });
 
       document.getElementById('regenerate-btn').addEventListener('click', () => {
         clearInfoBar();
-        renderAndWire(Board.generateBoard());
+        socket.emit('action', { type: 'regenerate' });
       });
 
       document.getElementById('balanced-btn').addEventListener('click', () => {
-        let b = Board.generateBoard();
-        for (let attempt = 0; attempt < 199; attempt++) {
-          if (isBalanced(b)) break;
-          b = Board.generateBoard();
-        }
         clearInfoBar();
-        renderAndWire(b);
+        socket.emit('action', { type: 'regenerate', balanced: true });
       });
 
       // ----- Trade modal -----
@@ -1124,21 +1034,43 @@
 
       document.getElementById('trade-confirm-btn').addEventListener('click', () => {
         if (!tradeGiveRes || !tradeTakeRes) return;
-        const result = Board.tradeWithBank(board, currentPlayer, tradeGiveRes, tradeTakeRes);
-        if (!result.valid) {
-          document.getElementById('trade-error-msg').textContent = result.reason;
-          return;
-        }
+        socket.emit('action', {
+          type: 'trade_with_bank',
+          playerId:     currentPlayer,
+          giveResource: tradeGiveRes,
+          getResource:  tradeTakeRes,
+        });
         closeTrade();
-        updatePlayerPanels();
-        updateTurnUI();
-        infoBar.style.color = '#7fffb0';
-        infoBar.textContent = `Traded ${result.rate} ${tradeGiveRes} → 1 ${tradeTakeRes}`;
-        setTimeout(clearInfoBar, 2500);
       });
 
-      // ----- Initial render -----
-      renderAndWire(Board.generateBoard());
+      // ----- Socket state handler — single render path -----
+      socket.on('state', ({ board: newBoard, rollLog: newLog }) => {
+        const wasEnded    = board && board.gameState.gameEnded;
+        const wasOpening  = board ? board.gameState.phase : null;
+
+        renderAndWire(newBoard);
+
+        // Opening → main phase transition message
+        if (wasOpening === 'opening' && newBoard.gameState.phase === 'main') {
+          infoBar.style.color = '#7fffb0';
+          infoBar.textContent = 'Opening complete! Red rolls first.';
+        }
+
+        // Rebuild roll log from server data
+        const rollLogEl = document.getElementById('roll-log');
+        rollLogEl.innerHTML = '';
+        for (const text of (newLog || [])) {
+          const p = document.createElement('p');
+          p.textContent = text;
+          rollLogEl.appendChild(p);
+        }
+
+        // Winner banner — show on first detection, hide when game resets
+        if (newBoard.gameState.gameEnded && !wasEnded) triggerWin(newBoard.gameState.winner);
+        if (!newBoard.gameState.gameEnded) document.getElementById('winner-overlay').style.display = 'none';
+      });
+
+      socket.on('action_error', ({ reason }) => showError(reason));
     });
   </script>
 </body>
