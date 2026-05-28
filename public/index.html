@@ -445,9 +445,228 @@
       border: 1px solid rgba(255, 255, 255, 0.28);
     }
     #trade-cancel-btn:hover { background: rgba(255, 255, 255, 0.22); }
+
+    /* ── LOBBY OVERLAY ────────────────────────────────────────── */
+    #lobby-overlay {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 20, 40, 0.96);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #lobby-card {
+      background: #0d2035;
+      border: 2px solid rgba(255, 255, 255, 0.22);
+      border-radius: 18px;
+      padding: 32px 38px;
+      min-width: 360px;
+      max-width: 420px;
+      width: 100%;
+      color: white;
+    }
+
+    #lobby-title {
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 24px;
+      letter-spacing: 1px;
+    }
+
+    .lobby-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 0;
+      border-radius: 9px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: opacity 0.12s;
+    }
+    .lobby-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #create-room-btn { background: #d4850e; color: white; }
+    #create-room-btn:hover:not(:disabled) { background: #e8960f; }
+    #start-game-btn { background: rgba(50, 200, 90, 0.7); color: white; }
+    #start-game-btn:hover:not(:disabled) { background: rgba(50, 220, 100, 0.85); }
+
+    #copy-code-btn {
+      background: rgba(255, 255, 255, 0.12);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      width: auto;
+      padding: 4px 12px;
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #copy-code-btn:hover { background: rgba(255, 255, 255, 0.22); }
+
+    #lobby-divider {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 0.8rem;
+      margin: 4px 0 10px;
+    }
+
+    #join-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    #room-code-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 7px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 1rem;
+      font-family: monospace;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+    #room-code-input::placeholder { letter-spacing: 1px; text-transform: none; color: rgba(255,255,255,0.35); }
+    #room-code-input:focus { outline: none; border-color: rgba(255,255,255,0.55); }
+
+    #join-submit-btn {
+      background: rgba(100, 180, 255, 0.2);
+      border: 1px solid rgba(100, 180, 255, 0.4);
+      border-radius: 7px;
+      padding: 8px 14px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    #join-submit-btn:hover { background: rgba(100, 180, 255, 0.35); }
+
+    #lobby-room-panel { display: none; margin-top: 10px; }
+
+    #room-code-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+    }
+
+    #room-code-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      font-family: monospace;
+      letter-spacing: 5px;
+      flex: 1;
+      text-align: center;
+    }
+
+    #lobby-players-list { margin-bottom: 14px; }
+
+    .lobby-player-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 0.82rem;
+    }
+
+    .lobby-player-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .lobby-player-name { flex: 1; }
+
+    .lobby-host-badge {
+      font-size: 0.6rem;
+      font-weight: bold;
+      background: #d4850e;
+      color: white;
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    .lobby-you-badge {
+      font-size: 0.6rem;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    #lobby-error {
+      color: #ff8080;
+      font-size: 0.78rem;
+      text-align: center;
+      min-height: 1.2em;
+      margin-top: 6px;
+    }
+
+    /* ── YOU BADGE in game UI ─────────────────────────────────── */
+    .you-badge {
+      display: none;
+      font-size: 0.55rem;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.22);
+      color: white;
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+
+    /* ── ROOM INFO in top bar ─────────────────────────────────── */
+    #room-code-label {
+      font-size: 0.78rem;
+      font-family: monospace;
+      letter-spacing: 2px;
+      opacity: 0.8;
+      display: none;
+      white-space: nowrap;
+    }
+
+    #my-color-label {
+      font-size: 0.78rem;
+      font-weight: bold;
+      display: none;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
+
+  <!-- LOBBY OVERLAY -->
+  <div id="lobby-overlay">
+    <div id="lobby-card">
+      <div id="lobby-title">Catan Clone</div>
+      <button class="lobby-btn" id="create-room-btn">Create Room</button>
+      <div id="lobby-divider">— or join existing —</div>
+      <div id="join-row">
+        <input id="room-code-input" type="text" maxlength="4" placeholder="Room code">
+        <button id="join-submit-btn">Join</button>
+      </div>
+      <div id="lobby-room-panel">
+        <div id="room-code-display">
+          <div id="room-code-value">----</div>
+          <button id="copy-code-btn">Copy</button>
+        </div>
+        <div id="lobby-players-list"></div>
+        <button class="lobby-btn" id="start-game-btn" disabled>Start Game</button>
+      </div>
+      <div id="lobby-error"></div>
+    </div>
+  </div>
 
   <!-- TRADE OVERLAY -->
   <div id="trade-overlay">
@@ -482,6 +701,8 @@
   <!-- TOP BAR -->
   <div id="top-bar">
     <h1>Catan Clone</h1>
+    <span id="room-code-label"></span>
+    <span id="my-color-label"></span>
     <div class="bar-sep"></div>
 
     <div class="control-group">
@@ -542,6 +763,7 @@
             <span class="player-dot" style="background:#d33"></span>
             <span class="player-name">Red</span>
             <span class="player-vp">0 VP</span>
+            <span class="you-badge">YOU</span>
             <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
@@ -558,6 +780,7 @@
             <span class="player-dot" style="background:#36c"></span>
             <span class="player-name">Blue</span>
             <span class="player-vp">0 VP</span>
+            <span class="you-badge">YOU</span>
             <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
@@ -574,6 +797,7 @@
             <span class="player-dot" style="background:#ccc"></span>
             <span class="player-name">White</span>
             <span class="player-vp">0 VP</span>
+            <span class="you-badge">YOU</span>
             <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
@@ -590,6 +814,7 @@
             <span class="player-dot" style="background:#f80"></span>
             <span class="player-name">Orange</span>
             <span class="player-vp">0 VP</span>
+            <span class="you-badge">YOU</span>
             <span class="turn-badge">TURN</span>
           </div>
           <div class="player-resources">
@@ -622,6 +847,7 @@
       const endBtn       = document.getElementById('end-turn-btn');
       const tradeBtn     = document.getElementById('trade-btn');
       const openingLabel = document.getElementById('opening-label');
+      const lobbyOverlay = document.getElementById('lobby-overlay');
 
       // ----- Lookup tables -----
       const RESOURCE = {
@@ -634,15 +860,109 @@
       const RES_EMOJI = { wood: '🪵', brick: '🧱', wheat: '🌾', wool: '🐑', ore: '⛏️' };
       const RES_NAME  = { wood: 'Wood', brick: 'Brick', wheat: 'Wheat', wool: 'Wool', ore: 'Ore' };
 
-      // ----- Board state (driven by server) -----
+      // ----- Board + identity state -----
       let board        = null;
       let graphVisible = false;
 
-      const PLAYER_COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
+      const PLAYER_COLORS     = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
       const PLAYER_COLOR_GLOW = { red: '#d33', blue: '#36c', white: '#ccc', orange: '#f80' };
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
+
+      let myColor  = null;
+      let roomCode = null;
+      let isHost   = false;
+
+      // ----- Lobby helpers -----
+      function setLobbyError(msg) {
+        document.getElementById('lobby-error').textContent = msg;
+      }
+
+      function updateLobbyPlayers(players, hostColor) {
+        const list = document.getElementById('lobby-players-list');
+        list.innerHTML = '';
+        for (const p of players) {
+          const row  = document.createElement('div');
+          row.className = 'lobby-player-row';
+          const name = p.color.charAt(0).toUpperCase() + p.color.slice(1);
+          const disc = p.connected ? '' : ' (disconnected)';
+          row.innerHTML = `
+            <span class="lobby-player-dot" style="background:${PLAYER_COLORS[p.color]}"></span>
+            <span class="lobby-player-name">${name}${disc}</span>
+            ${p.color === hostColor ? '<span class="lobby-host-badge">HOST</span>' : ''}
+            ${p.color === myColor   ? '<span class="lobby-you-badge">YOU</span>'   : ''}
+          `;
+          list.appendChild(row);
+        }
+        const startBtn = document.getElementById('start-game-btn');
+        if (startBtn) startBtn.disabled = !isHost || players.filter(p => p.connected).length < 2;
+      }
+
+      // ----- Socket: room events -----
+      socket.on('room_joined', ({ roomCode: rc, playerColor, isHost: h, players, hostColor }) => {
+        myColor  = playerColor;
+        roomCode = rc;
+        isHost   = h;
+
+        const rcLabel = document.getElementById('room-code-label');
+        const mcLabel = document.getElementById('my-color-label');
+        if (rcLabel) { rcLabel.textContent = `Room: ${rc}`; rcLabel.style.display = ''; }
+        if (mcLabel) {
+          const name = myColor.charAt(0).toUpperCase() + myColor.slice(1);
+          mcLabel.textContent = `(${name})`;
+          mcLabel.style.color = PLAYER_COLORS[myColor];
+          mcLabel.style.display = '';
+        }
+
+        document.getElementById('room-code-value').textContent = rc;
+        document.getElementById('lobby-room-panel').style.display = 'block';
+        updateLobbyPlayers(players, hostColor);
+        setLobbyError('');
+      });
+
+      socket.on('players_update', ({ players, hostColor }) => {
+        updateLobbyPlayers(players, hostColor);
+      });
+
+      socket.on('promoted_host', () => {
+        isHost = true;
+        const startBtn = document.getElementById('start-game-btn');
+        if (startBtn) startBtn.disabled = false;
+      });
+
+      socket.on('room_error', ({ reason }) => setLobbyError(reason));
+
+      // ----- Lobby button handlers -----
+      document.getElementById('create-room-btn').addEventListener('click', () => {
+        setLobbyError('');
+        socket.emit('create_room');
+      });
+
+      document.getElementById('join-submit-btn').addEventListener('click', () => {
+        const input = document.getElementById('room-code-input');
+        const code  = input.value.trim().toUpperCase();
+        if (code.length !== 4) { setLobbyError('Enter a 4-letter room code'); return; }
+        setLobbyError('');
+        socket.emit('join_room', { roomCode: code });
+      });
+
+      document.getElementById('room-code-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('join-submit-btn').click();
+      });
+
+      document.getElementById('room-code-input').addEventListener('input', e => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+      });
+
+      document.getElementById('copy-code-btn').addEventListener('click', () => {
+        if (roomCode) navigator.clipboard.writeText(roomCode).catch(() => {});
+      });
+
+      document.getElementById('start-game-btn').addEventListener('click', () => {
+        if (!isHost) return;
+        socket.emit('start_game');
+      });
 
       // ----- Winner overlay -----
       function triggerWin(playerId) {
@@ -657,10 +977,8 @@
         const box = document.getElementById('winner-box');
         box.style.borderColor = color;
         box.style.boxShadow   = `0 0 60px ${color}88, 0 0 120px ${color}44`;
-
-        // Re-trigger the pop animation by cloning the box
         box.style.animation = 'none';
-        box.offsetHeight;   // force reflow
+        box.offsetHeight;
         box.style.animation = '';
 
         document.getElementById('winner-overlay').style.display = 'flex';
@@ -669,7 +987,8 @@
       document.getElementById('play-again-btn').addEventListener('click', () => {
         document.getElementById('winner-overlay').style.display = 'none';
         clearInfoBar();
-        socket.emit('action', { type: 'regenerate' });
+        if (isHost) socket.emit('action', { type: 'regenerate' });
+        else showError('Only the host can start a new game');
       });
 
       // ----- UI helpers -----
@@ -687,46 +1006,42 @@
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
 
-      // Syncs currentPlayer + currentMode from game state, and updates all button visuals.
-      // Player selector is always driven by turn order — manual clicks are disabled.
       function syncPlayerAndMode() {
         if (!board) return;
         const isOpening  = board.gameState.phase === 'opening';
         const turnPlayer = Board.getCurrentPlayer(board);
+        const isMyTurn   = !!myColor && myColor === turnPlayer;
 
-        // Always follow turn order — player selector is display-only
         currentPlayer = turnPlayer;
         if (isOpening) currentMode = board.gameState.openingStep;
 
-        // Player selector circles — highlight only, no interaction
         document.querySelectorAll('.player-btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.player === currentPlayer);
         });
 
-        // Mode buttons — hide City during opening; dim unaffordable in main phase
         document.querySelectorAll('[data-mode]').forEach(btn => {
           const m      = btn.dataset.mode;
           const active = m === currentMode;
           if (m === 'city') btn.style.display = isOpening ? 'none' : '';
           btn.classList.toggle('active', active);
-          btn.disabled = isOpening;
+          btn.disabled = isOpening || !isMyTurn;
 
-          if (isOpening) {
+          if (!isMyTurn) {
+            btn.style.opacity = '0.35';
+          } else if (isOpening) {
             btn.style.opacity = active ? '' : '0.35';
           } else {
-            btn.style.opacity = (!active && !Board.canAfford(board, turnPlayer, m).valid)
-              ? '0.5' : '';
+            btn.style.opacity = (!active && !Board.canAfford(board, turnPlayer, m).valid) ? '0.5' : '';
           }
         });
       }
 
-      // Updates player-panel glow, TURN badge, and Roll/End button states.
       function updateTurnUI() {
         if (!board) return;
         const isOpening = board.gameState.phase === 'opening';
         const active    = Board.getCurrentPlayer(board);
+        const isMyTurn  = !!myColor && myColor === active;
 
-        // Player panel glow + TURN badge
         document.querySelectorAll('.player-panel').forEach(panel => {
           const p        = panel.dataset.player;
           const isActive = p === active;
@@ -736,14 +1051,14 @@
           if (badge) badge.style.display = isActive ? 'inline' : 'none';
         });
 
-        // Show opening label OR roll-dice / end-turn / trade buttons
         if (isOpening) {
           rollBtn.style.display      = 'none';
           endBtn.style.display       = 'none';
           tradeBtn.style.display     = 'none';
           openingLabel.style.display = '';
           const gs       = board.gameState;
-          const roundNum = gs.openingTurn < 4 ? 1 : 2;
+          const half     = gs.openingOrder.length / 2;
+          const roundNum = gs.openingTurn < half ? 1 : 2;
           openingLabel.textContent = gs.openingStep === 'settlement'
             ? `Opening — ${active}: settlement ${roundNum} of 2`
             : `Opening — ${active}: place road`;
@@ -755,29 +1070,39 @@
 
           const isRollPhase  = board.gameState.turnPhase === 'roll';
           const isBuildPhase = board.gameState.turnPhase === 'build';
-          rollBtn.disabled       = !isRollPhase;
-          rollBtn.style.opacity  = isRollPhase  ? '' : '0.4';
-          endBtn.disabled        = !isBuildPhase;
-          endBtn.style.opacity   = isBuildPhase ? '' : '0.4';
-          tradeBtn.disabled      = !isBuildPhase;
-          tradeBtn.style.opacity = isBuildPhase ? '' : '0.4';
+          rollBtn.disabled       = !isRollPhase  || !isMyTurn;
+          rollBtn.style.opacity  = (isRollPhase  && isMyTurn) ? '' : '0.4';
+          endBtn.disabled        = !isBuildPhase || !isMyTurn;
+          endBtn.style.opacity   = (isBuildPhase && isMyTurn) ? '' : '0.4';
+          tradeBtn.disabled      = !isBuildPhase || !isMyTurn;
+          tradeBtn.style.opacity = (isBuildPhase && isMyTurn) ? '' : '0.4';
         }
 
         syncPlayerAndMode();
       }
 
-      // Updates VP (via calculateVP) and resource counts in all four player panels.
       function updatePlayerPanels() {
         if (!board) return;
+        const playerOrder = board.gameState.playerOrder || ['red', 'blue', 'white', 'orange'];
+
         ['red', 'blue', 'white', 'orange'].forEach(player => {
           const panel = document.querySelector(`.player-panel[data-player="${player}"]`);
           if (!panel) return;
-          panel.querySelector('.player-vp').textContent =
-            `${Board.calculateVP(board, player)} VP`;
+
+          const inGame = playerOrder.includes(player);
+          panel.style.display = inGame ? '' : 'none';
+          if (!inGame) return;
+
+          panel.querySelector('.player-vp').textContent = `${Board.calculateVP(board, player)} VP`;
           const res = board.players[player];
-          panel.querySelectorAll('.res-count').forEach(el => {
-            el.textContent = res[el.dataset.res] ?? 0;
-          });
+          if (res) {
+            panel.querySelectorAll('.res-count').forEach(el => {
+              el.textContent = res[el.dataset.res] ?? 0;
+            });
+          }
+
+          const youBadge = panel.querySelector('.you-badge');
+          if (youBadge) youBadge.style.display = (player === myColor) ? 'inline' : 'none';
         });
       }
 
@@ -786,7 +1111,6 @@
         if (g) g.style.display = graphVisible ? '' : 'none';
       }
 
-      // Full re-render — wipes the SVG and rebuilds all layers in z-order.
       function renderAndWire(b) {
         board = b;
         Render.renderBoard(svg, board);
@@ -827,88 +1151,74 @@
 
       function onVertexClick(vIdx) {
         if (board.gameState.gameEnded) return;
+        const isOpening    = board.gameState.phase === 'opening';
+        const activePlayer = Board.getCurrentPlayer(board);
 
-        const isOpening = board.gameState.phase === 'opening';
-
-        // Turn-order gates
         if (!isOpening && board.gameState.turnPhase === 'roll') {
-          showError('roll dice before building');
-          return;
+          showError('roll dice before building'); return;
         }
-        if (Board.getCurrentPlayer(board) !== currentPlayer) {
+        if (myColor && myColor !== activePlayer) {
           const { x, y } = board.graph.vertices[vIdx];
           Render.flashInvalid(svg, x, y);
-          showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
-          return;
+          showError(`not your turn — it's ${activePlayer}'s turn`); return;
         }
         if (isOpening && board.gameState.openingStep !== 'settlement') {
           const { x, y } = board.graph.vertices[vIdx];
           Render.flashInvalid(svg, x, y);
-          showError('place your road first');
-          return;
+          showError('place your road first'); return;
         }
 
         const { x, y } = board.graph.vertices[vIdx];
 
         if (currentMode === 'settlement') {
-          const place = Board.canPlaceSettlement(board, vIdx, currentPlayer);
+          const place = Board.canPlaceSettlement(board, vIdx, activePlayer);
           if (!place.valid) { Render.flashInvalid(svg, x, y); showError(place.reason); return; }
-
           if (!isOpening) {
-            const afford = Board.canAfford(board, currentPlayer, 'settlement');
+            const afford = Board.canAfford(board, activePlayer, 'settlement');
             if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
           }
-
-          socket.emit('action', { type: 'place_settlement', vertex: vIdx, playerId: currentPlayer });
+          socket.emit('action', { type: 'place_settlement', vertex: vIdx });
 
         } else if (currentMode === 'city') {
-          const place = Board.canUpgradeToCity(board, vIdx, currentPlayer);
+          const place = Board.canUpgradeToCity(board, vIdx, activePlayer);
           if (!place.valid) { Render.flashInvalid(svg, x, y); showError(place.reason); return; }
-
-          const afford = Board.canAfford(board, currentPlayer, 'city');
+          const afford = Board.canAfford(board, activePlayer, 'city');
           if (!afford.valid) { Render.flashInvalid(svg, x, y); showError(afford.reason); return; }
-
-          socket.emit('action', { type: 'place_city', vertex: vIdx, playerId: currentPlayer });
+          socket.emit('action', { type: 'place_city', vertex: vIdx });
         }
       }
 
       function onEdgeClick(eIdx) {
         if (board.gameState.gameEnded) return;
         if (currentMode !== 'road') return;
+        const isOpening    = board.gameState.phase === 'opening';
+        const activePlayer = Board.getCurrentPlayer(board);
 
-        const isOpening = board.gameState.phase === 'opening';
-
-        // Turn-order gates
         if (!isOpening && board.gameState.turnPhase === 'roll') {
-          showError('roll dice before building');
-          return;
+          showError('roll dice before building'); return;
         }
-        if (Board.getCurrentPlayer(board) !== currentPlayer) {
+        if (myColor && myColor !== activePlayer) {
           const edge = board.graph.edges[eIdx];
           Render.flashInvalid(svg, (edge.x1 + edge.x2) / 2, (edge.y1 + edge.y2) / 2);
-          showError(`not your turn — it's ${Board.getCurrentPlayer(board)}'s turn`);
-          return;
+          showError(`not your turn — it's ${activePlayer}'s turn`); return;
         }
         if (isOpening && board.gameState.openingStep !== 'road') {
           const edge = board.graph.edges[eIdx];
           Render.flashInvalid(svg, (edge.x1 + edge.x2) / 2, (edge.y1 + edge.y2) / 2);
-          showError('place your settlement first');
-          return;
+          showError('place your settlement first'); return;
         }
 
         const edge = board.graph.edges[eIdx];
         const mx   = (edge.x1 + edge.x2) / 2;
-        const my   = (edge.y1 + edge.y2) / 2;
+        const my_  = (edge.y1 + edge.y2) / 2;
 
-        const place = Board.canPlaceRoad(board, eIdx, currentPlayer);
-        if (!place.valid) { Render.flashInvalid(svg, mx, my); showError(place.reason); return; }
-
+        const place = Board.canPlaceRoad(board, eIdx, activePlayer);
+        if (!place.valid) { Render.flashInvalid(svg, mx, my_); showError(place.reason); return; }
         if (!isOpening) {
-          const afford = Board.canAfford(board, currentPlayer, 'road');
-          if (!afford.valid) { Render.flashInvalid(svg, mx, my); showError(afford.reason); return; }
+          const afford = Board.canAfford(board, activePlayer, 'road');
+          if (!afford.valid) { Render.flashInvalid(svg, mx, my_); showError(afford.reason); return; }
         }
-
-        socket.emit('action', { type: 'place_road', edge: eIdx, playerId: currentPlayer });
+        socket.emit('action', { type: 'place_road', edge: eIdx });
       }
 
       // ----- Button handlers -----
@@ -963,18 +1273,17 @@
         const player = Board.getCurrentPlayer(board);
         const res    = board.players[player];
 
-        // Give row: show count + best rate; disable if player can't afford
         const giveRow = document.getElementById('give-row');
         giveRow.innerHTML = '';
         for (const r of RESOURCES) {
-          const rate    = Board.getBestTradeRate(board, player, r);
-          const count   = res[r] || 0;
+          const rate     = Board.getBestTradeRate(board, player, r);
+          const count    = res[r] || 0;
           const canTrade = count >= rate;
           const btn = document.createElement('button');
-          btn.className = 'trade-res-btn';
+          btn.className   = 'trade-res-btn';
           btn.dataset.res = r;
-          btn.disabled = !canTrade;
-          btn.innerHTML = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-count">${count}</span><span class="t-rate">${rate}:1</span>`;
+          btn.disabled    = !canTrade;
+          btn.innerHTML   = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-count">${count}</span><span class="t-rate">${rate}:1</span>`;
           btn.addEventListener('click', () => {
             if (btn.disabled) return;
             tradeGiveRes = r;
@@ -984,14 +1293,13 @@
           giveRow.appendChild(btn);
         }
 
-        // Take row: just the resource icon + name
         const takeRow = document.getElementById('take-row');
         takeRow.innerHTML = '';
         for (const r of RESOURCES) {
           const btn = document.createElement('button');
-          btn.className = 'trade-res-btn';
+          btn.className   = 'trade-res-btn';
           btn.dataset.res = r;
-          btn.innerHTML = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-name">${RES_NAME[r]}</span>`;
+          btn.innerHTML   = `<span class="t-icon">${RES_EMOJI[r]}</span><span class="t-name">${RES_NAME[r]}</span>`;
           btn.addEventListener('click', () => {
             tradeTakeRes = r;
             takeRow.querySelectorAll('.trade-res-btn').forEach(b => b.classList.toggle('selected', b.dataset.res === r));
@@ -1007,17 +1315,12 @@
         const confirmBtn = document.getElementById('trade-confirm-btn');
         const errMsg     = document.getElementById('trade-error-msg');
         if (!tradeGiveRes || !tradeTakeRes) {
-          confirmBtn.disabled = true;
-          errMsg.textContent  = '';
-          return;
+          confirmBtn.disabled = true; errMsg.textContent = ''; return;
         }
         if (tradeGiveRes === tradeTakeRes) {
-          confirmBtn.disabled = true;
-          errMsg.textContent  = "Can't trade a resource for itself";
-          return;
+          confirmBtn.disabled = true; errMsg.textContent = "Can't trade a resource for itself"; return;
         }
-        confirmBtn.disabled = false;
-        errMsg.textContent  = '';
+        confirmBtn.disabled = false; errMsg.textContent = '';
       }
 
       function closeTrade() {
@@ -1025,18 +1328,15 @@
       }
 
       tradeBtn.addEventListener('click', () => { if (!tradeBtn.disabled) openTradeModal(); });
-
       document.getElementById('trade-overlay').addEventListener('click', e => {
         if (e.target === e.currentTarget) closeTrade();
       });
-
       document.getElementById('trade-cancel-btn').addEventListener('click', closeTrade);
 
       document.getElementById('trade-confirm-btn').addEventListener('click', () => {
         if (!tradeGiveRes || !tradeTakeRes) return;
         socket.emit('action', {
-          type: 'trade_with_bank',
-          playerId:     currentPlayer,
+          type:         'trade_with_bank',
           giveResource: tradeGiveRes,
           getResource:  tradeTakeRes,
         });
@@ -1045,18 +1345,20 @@
 
       // ----- Socket state handler — single render path -----
       socket.on('state', ({ board: newBoard, rollLog: newLog }) => {
-        const wasEnded    = board && board.gameState.gameEnded;
-        const wasOpening  = board ? board.gameState.phase : null;
+        const wasEnded   = board && board.gameState.gameEnded;
+        const wasOpening = board ? board.gameState.phase : null;
+
+        lobbyOverlay.style.display = 'none';
 
         renderAndWire(newBoard);
 
-        // Opening → main phase transition message
         if (wasOpening === 'opening' && newBoard.gameState.phase === 'main') {
+          const firstPlayer = newBoard.gameState.playerOrder[0];
+          const firstName   = firstPlayer.charAt(0).toUpperCase() + firstPlayer.slice(1);
           infoBar.style.color = '#7fffb0';
-          infoBar.textContent = 'Opening complete! Red rolls first.';
+          infoBar.textContent = `Opening complete! ${firstName} rolls first.`;
         }
 
-        // Rebuild roll log from server data
         const rollLogEl = document.getElementById('roll-log');
         rollLogEl.innerHTML = '';
         for (const text of (newLog || [])) {
@@ -1065,7 +1367,6 @@
           rollLogEl.appendChild(p);
         }
 
-        // Winner banner — show on first detection, hide when game resets
         if (newBoard.gameState.gameEnded && !wasEnded) triggerWin(newBoard.gameState.winner);
         if (!newBoard.gameState.gameEnded) document.getElementById('winner-overlay').style.display = 'none';
       });

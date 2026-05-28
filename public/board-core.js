@@ -335,7 +335,7 @@ function advanceOpening(board) {
   } else {
     gs.openingStep = 'settlement';
     gs.openingTurn++;
-    if (gs.openingTurn > 7) {
+    if (gs.openingTurn >= gs.openingOrder.length) {
       gs.phase              = 'main';
       gs.currentPlayerIndex = 0;
       gs.turnPhase          = 'roll';
