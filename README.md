@@ -22,3 +22,17 @@ Work in progress. Built incrementally with Claude Code.
 ## Run locally
 
 ```bash
+# Catan Clone 🎲
+
+A free, self-hostable multiplayer Catan board game.
+
+[🎮 Play Live Demo](link) | [GitHub](repo)
+
+## Features
+- Real-time multiplayer (Socket.io)
+- Full Catan rules implementation
+- Room codes for private games
+- No login required
+
+## Quick Start
+npm install && npm start
