@@ -7,7 +7,7 @@ const Board   = require('./public/board-core.js');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
-const PORT   = 3000;
+const PORT   = process.env.PORT || 3000;
 
 const COLORS     = ['red', 'blue', 'white', 'orange'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
