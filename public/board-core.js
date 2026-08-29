@@ -409,8 +409,9 @@ function tradeWithBank(board, playerId, giveResource, takeResource) {
 
 function checkWinner(board) {
   if (board.gameState.gameEnded) return board.gameState.winner;
+  const target = board.gameState.winTarget || 10;
   for (const playerId of board.gameState.playerOrder) {
-    if (calculateVP(board, playerId) >= 10) {
+    if (calculateVP(board, playerId) >= target) {
       board.gameState.winner    = playerId;
       board.gameState.gameEnded = true;
       return playerId;

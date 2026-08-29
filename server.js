@@ -106,6 +106,7 @@ function freshBoard(room, balanced) {
   b.gameState.openingOrder       = buildOpeningOrder(colors);
   b.gameState.openingTurn        = 0;
   b.gameState.currentPlayerIndex = 0;
+  b.gameState.winTarget          = room.winTarget || 10;
   b.players = {};
   for (const c of colors) b.players[c] = { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 };
   return b;
@@ -296,6 +297,7 @@ io.on('connection', (socket) => {
       hostColor:    color,
       started:      false,
       cleanupTimer: null,
+      winTarget:    10,
     };
     socket.roomCode    = code;
     socket.playerColor = color;
@@ -331,12 +333,15 @@ io.on('connection', (socket) => {
     broadcastPlayersUpdate(code);
   });
 
-  socket.on('start_game', () => {
+  socket.on('start_game', (payload = {}) => {
     const room = getRoom(socket);
     if (!room)                                 return socket.emit('room_error', { reason: 'Not in a room' });
     if (socket.playerColor !== room.hostColor) return socket.emit('room_error', { reason: 'Only the host can start the game' });
     const colors = connectedColors(room);
     if (colors.length < 2)                     return socket.emit('room_error', { reason: 'Need at least 2 players to start' });
+
+    const t = parseInt(payload.winTarget, 10);
+    room.winTarget = [3,5,8,10].includes(t) ? t : 10;
 
     room.board   = freshBoard(room, false);
     room.rollLog = [];

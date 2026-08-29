@@ -13,7 +13,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #1a3a5c;
+      background: #0f6ab5;
       height: 100vh;
       overflow: hidden;
       font-family: Arial, sans-serif;
@@ -27,32 +27,37 @@
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 14px;
-      background: rgba(0, 0, 0, 0.28);
+      gap: 12px;
+      padding: 8px 18px;
+      background: rgba(0, 0, 0, 0.42);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       flex-wrap: wrap;
     }
 
     h1 {
-      font-size: 1.2rem;
-      letter-spacing: 0.5px;
+      font-size: 1.3rem;
+      font-weight: bold;
+      letter-spacing: 0.6px;
       white-space: nowrap;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      text-shadow: 0 1px 6px rgba(0,0,0,0.5);
     }
 
     #info-bar {
-      font-size: 0.76rem;
-      opacity: 0.88;
-      min-height: 1.2em;
+      position: fixed;
+      bottom: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.62rem;
+      color: rgba(255, 255, 255, 0.36);
       white-space: nowrap;
-      flex: 1;
-      text-align: center;
+      pointer-events: none;
+      z-index: 99;
     }
 
     .bar-sep {
       width: 1px;
-      height: 22px;
-      background: rgba(255, 255, 255, 0.22);
+      height: 24px;
+      background: rgba(255, 255, 255, 0.18);
       flex-shrink: 0;
     }
 
@@ -62,10 +67,29 @@
       gap: 5px;
     }
     .control-label {
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.50);
+      font-size: 0.66rem;
       font-weight: bold;
       white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Utility/dev button group — muted so it doesn't compete with gameplay */
+    .dev-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .dev-group .top-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.14);
+      font-size: 0.70rem;
+      opacity: 0.65;
+    }
+    .dev-group .top-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.18);
+      opacity: 1;
     }
 
     /* Player color circles — display-only, reflects current turn order */
@@ -121,6 +145,33 @@
     }
     #end-turn-btn:hover:not(:disabled) { background: rgba(50, 170, 100, 0.75); }
 
+    /* Bottom action bar */
+    #bottom-bar {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(8, 16, 36, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      padding: 10px 20px;
+      box-shadow: 0 6px 32px rgba(0, 0, 0, 0.70);
+      z-index: 100;
+      white-space: nowrap;
+    }
+    #bottom-bar .top-btn {
+      padding: 10px 18px;
+      font-size: 0.90rem;
+      border-radius: 10px;
+    }
+    #bottom-bar [data-mode] {
+      min-width: 90px;
+      text-align: center;
+    }
+
     /* Opening phase label */
     #opening-label {
       font-size: 0.78rem;
@@ -143,8 +194,8 @@
     #main {
       flex: 1;
       display: flex;
-      gap: 10px;
-      padding: 8px 12px;
+      gap: 6px;
+      padding: 6px 8px 90px;
       min-height: 0;
       overflow: hidden;
     }
@@ -164,9 +215,9 @@
       max-width: 100%;
       max-height: 100%;
       aspect-ratio: 1;
-      background: #2b8fd6;
-      border-radius: 12px;
-      box-shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
+      background: #1680c8;
+      border-radius: 16px;
+      box-shadow: 0 8px 36px rgba(0, 0, 0, 0.6);
     }
 
     #seed-label {
@@ -179,11 +230,11 @@
 
     /* Right panel */
     #right-panel {
-      width: 222px;
+      width: 258px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       min-height: 0;
       overflow: hidden;
     }
@@ -200,7 +251,7 @@
     /* Roll log */
     #roll-log-box { flex-shrink: 0; }
     #roll-log {
-      max-height: 200px;
+      max-height: 110px;
       overflow-y: auto;
       background: rgba(0, 0, 0, 0.28);
       border-radius: 8px;
@@ -216,16 +267,17 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       overflow-y: auto;
       min-height: 0;
     }
 
     .player-panel {
-      background: rgba(0, 0, 0, 0.28);
-      border-radius: 8px;
-      padding: 7px 10px;
-      border-left: 3px solid transparent;
+      background: rgba(5, 18, 45, 0.62);
+      border-radius: 10px;
+      padding: 10px 12px 10px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-left: 4px solid rgba(255, 255, 255, 0.12);
       flex-shrink: 0;
       transition: box-shadow 0.25s, transform 0.2s;
     }
@@ -237,24 +289,33 @@
     .player-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 5px;
+      gap: 8px;
+      margin-bottom: 8px;
     }
     .player-dot {
-      width: 11px;
-      height: 11px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.80rem;
+      font-weight: bold;
+      color: rgba(0, 0, 0, 0.62);
     }
     .player-name {
-      font-size: 0.8rem;
+      font-size: 0.88rem;
       font-weight: bold;
       flex: 1;
+      color: rgba(255, 255, 255, 0.95);
     }
     .player-vp {
-      font-size: 0.7rem;
+      font-size: 0.78rem;
       font-weight: bold;
       color: #ffd700;
+      letter-spacing: 0.3px;
     }
     .turn-badge {
       display: none;
@@ -262,24 +323,32 @@
       font-weight: bold;
       background: #ffd700;
       color: #1a1a2e;
-      border-radius: 3px;
-      padding: 1px 4px;
-      letter-spacing: 0.3px;
+      border-radius: 20px;
+      padding: 2px 6px;
+      letter-spacing: 0.5px;
     }
 
     .player-resources {
       display: flex;
-      gap: 3px;
+      gap: 4px;
     }
     .res-item {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1px;
+      gap: 2px;
+      background: rgba(0, 0, 0, 0.30);
+      border-radius: 6px;
+      padding: 5px 2px;
     }
-    .res-emoji { font-size: 0.82rem; line-height: 1; }
-    .res-count { font-size: 0.78rem; font-weight: bold; }
+    .res-item:has([data-res="wood"])  { background: rgba(130, 68, 18,  0.70); }
+    .res-item:has([data-res="brick"]) { background: rgba(190, 72, 28,  0.70); }
+    .res-item:has([data-res="wheat"]) { background: rgba(185, 148, 10, 0.70); }
+    .res-item:has([data-res="wool"])  { background: rgba(45,  148, 50,  0.65); }
+    .res-item:has([data-res="ore"])   { background: rgba(88,  88,  118, 0.70); }
+    .res-emoji { font-size: 0.92rem; line-height: 1; }
+    .res-count { font-size: 0.82rem; font-weight: bold; color: rgba(255, 255, 255, 0.96); }
 
     /* ── WINNER OVERLAY ───────────────────────────────────────── */
     #winner-overlay {
@@ -551,6 +620,16 @@
 
     #lobby-room-panel { display: none; margin-top: 10px; }
 
+    #win-target-select {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: white;
+      font-size: 0.82rem;
+    }
+    #win-target-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
     #room-code-display {
       display: flex;
       align-items: center;
@@ -620,10 +699,10 @@
       display: none;
       font-size: 0.55rem;
       font-weight: bold;
-      background: rgba(255, 255, 255, 0.22);
-      color: white;
-      border-radius: 3px;
-      padding: 1px 4px;
+      background: rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.85);
+      border-radius: 20px;
+      padding: 2px 6px;
     }
 
     /* ── ROOM INFO in top bar ─────────────────────────────────── */
@@ -662,6 +741,15 @@
           <button id="copy-code-btn">Copy</button>
         </div>
         <div id="lobby-players-list"></div>
+        <div id="win-target-row" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:0.82rem;">
+          <span>Play to:</span>
+          <select id="win-target-select">
+            <option value="3">3 points (quick)</option>
+            <option value="5">5 points</option>
+            <option value="8">8 points</option>
+            <option value="10" selected>10 points (standard)</option>
+          </select>
+        </div>
         <button class="lobby-btn" id="start-game-btn" disabled>Start Game</button>
       </div>
       <div id="lobby-error"></div>
@@ -715,27 +803,27 @@
 
     <div class="bar-sep"></div>
 
-    <div class="control-group">
-      <span class="control-label">Mode</span>
-      <button class="top-btn active" data-mode="settlement">Settlement</button>
-      <button class="top-btn"        data-mode="city">City</button>
-      <button class="top-btn"        data-mode="road">Road</button>
+    <div class="dev-group">
+      <button class="top-btn" id="clear-pieces-btn">Clear</button>
+      <button class="top-btn" id="regenerate-btn">Regenerate</button>
+      <button class="top-btn" id="balanced-btn">Balanced</button>
+      <button class="top-btn" id="toggle-graph-btn">Graph</button>
     </div>
-    <span class="cost-hint">Road: 1🪵1🧱 · Settlement: 1🪵1🧱1🌾1🐑 · City: 2🌾3⛰️</span>
 
+    <span id="info-bar">Click a tile to inspect it or move the robber</span>
+  </div>
+
+  <!-- BOTTOM ACTION BAR -->
+  <div id="bottom-bar">
+    <button class="top-btn active" data-mode="settlement">Settlement</button>
+    <button class="top-btn"        data-mode="city">City</button>
+    <button class="top-btn"        data-mode="road">Road</button>
     <div class="bar-sep"></div>
-
-    <button class="top-btn" id="clear-pieces-btn">Clear</button>
     <button class="top-btn" id="roll-dice-btn">🎲 Roll Dice</button>
     <button class="top-btn" id="end-turn-btn">End Turn →</button>
     <button class="top-btn" id="trade-btn">⚖️ Trade</button>
     <span id="opening-label"></span>
-    <button class="top-btn" id="regenerate-btn">Regenerate</button>
-    <button class="top-btn" id="balanced-btn">Balanced</button>
-    <button class="top-btn" id="toggle-graph-btn">Graph</button>
-
-    <div class="bar-sep"></div>
-    <span id="info-bar">Click a tile to inspect it or move the robber</span>
+    <span class="cost-hint">Road: 1🪵1🧱 · Settlement: 1🪵1🧱1🌾1🐑 · City: 2🌾3⛰️</span>
   </div>
 
   <!-- MAIN -->
@@ -760,7 +848,7 @@
 
         <div class="player-panel" data-player="red">
           <div class="player-header">
-            <span class="player-dot" style="background:#d33"></span>
+            <span class="player-dot" style="background:#d33">R</span>
             <span class="player-name">Red</span>
             <span class="player-vp">0 VP</span>
             <span class="you-badge">YOU</span>
@@ -777,7 +865,7 @@
 
         <div class="player-panel" data-player="blue">
           <div class="player-header">
-            <span class="player-dot" style="background:#36c"></span>
+            <span class="player-dot" style="background:#36c">B</span>
             <span class="player-name">Blue</span>
             <span class="player-vp">0 VP</span>
             <span class="you-badge">YOU</span>
@@ -794,7 +882,7 @@
 
         <div class="player-panel" data-player="white">
           <div class="player-header">
-            <span class="player-dot" style="background:#ccc"></span>
+            <span class="player-dot" style="background:#ccc">W</span>
             <span class="player-name">White</span>
             <span class="player-vp">0 VP</span>
             <span class="you-badge">YOU</span>
@@ -811,7 +899,7 @@
 
         <div class="player-panel" data-player="orange">
           <div class="player-header">
-            <span class="player-dot" style="background:#f80"></span>
+            <span class="player-dot" style="background:#f80">O</span>
             <span class="player-name">Orange</span>
             <span class="player-vp">0 VP</span>
             <span class="you-badge">YOU</span>
@@ -897,6 +985,8 @@
         }
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) startBtn.disabled = !isHost || players.filter(p => p.connected).length < 2;
+        const winTargetSelect = document.getElementById('win-target-select');
+        if (winTargetSelect) winTargetSelect.disabled = !isHost;
       }
 
       // ----- Socket: room events -----
@@ -961,7 +1051,8 @@
 
       document.getElementById('start-game-btn').addEventListener('click', () => {
         if (!isHost) return;
-        socket.emit('start_game');
+        const winTarget = parseInt(document.getElementById('win-target-select').value, 10);
+        socket.emit('start_game', { winTarget });
       });
 
       // ----- Winner overlay -----

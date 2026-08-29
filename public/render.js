@@ -70,40 +70,41 @@ window.Render = (() => {
     svgElement.appendChild(txt);
   }
 
-  // Draw the white circle + number + probability dots for non-desert tiles.
+  // Draw a Catan-style number token: cream circle + bold number + probability dots.
   function drawNumberToken(svg, pos, number) {
     const cx  = pos.x;
-    const cy  = pos.y + 6;        // slightly below tile center
+    const cy  = pos.y + 6;
     const red = number === 6 || number === 8;
-    const ink = red ? '#c41e1e' : '#111111';
+    const ink = red ? '#c0392b' : '#2c3e50';
 
-    // White backing circle
+    // Cream backing circle
     svg.appendChild(el('circle', {
       cx, cy, r: 16,
-      fill:         'white',
-      stroke:       '#bbbbbb',
+      fill:           '#f4ead5',
+      stroke:         '#00000030',
       'stroke-width': 1,
     }));
 
-    // Number text — baseline at cy+4 so the digit reads as vertically centered
+    // Number text
     const txt = el('text', {
-      x:              cx,
-      y:              cy + 4,
-      'text-anchor':  'middle',
-      'font-size':    13,
-      'font-weight':  'bold',
-      'font-family':  'Arial, sans-serif',
-      fill:           ink,
+      x:                   cx,
+      y:                   cy,
+      'text-anchor':       'middle',
+      'dominant-baseline': 'central',
+      'font-size':         18,
+      'font-weight':       'bold',
+      'font-family':       'Arial, sans-serif',
+      fill:                ink,
     });
     txt.textContent = number;
     svg.appendChild(txt);
 
-    // Probability dots — small filled circles near the bottom of the token
-    const count  = DOT_COUNT[number] || 0;
-    const dotR   = 1.8;
-    const spacing = 5;
-    const dotY   = cy + 12;
-    const startX = cx - ((count - 1) * spacing) / 2;
+    // Probability dots
+    const count   = DOT_COUNT[number] || 0;
+    const dotR    = 1.6;
+    const spacing = 4;
+    const dotY    = cy + 9;
+    const startX  = cx - ((count - 1) * spacing) / 2;
     for (let d = 0; d < count; d++) {
       svg.appendChild(el('circle', {
         cx:   startX + d * spacing,
@@ -153,6 +154,14 @@ window.Render = (() => {
     svgElement.setAttribute('viewBox', '0 0 800 800');
 
     const { positions, tiles, numbers, robber } = board;
+
+    // 0. Ocean backdrop — behind all hex tiles
+    svgElement.appendChild(el('rect', {
+      x: 65, y: 90, width: 670, height: 620, rx: 30, ry: 30,
+      fill:           '#4a90d9',
+      stroke:         '#2e6fa8',
+      'stroke-width': 2.5,
+    }));
 
     // 1. Draw all hex tile polygons first (bottom layer)
     for (let i = 0; i < positions.length; i++) {
@@ -398,27 +407,42 @@ window.Render = (() => {
         }));
       }
 
-      // Ship emoji
+      // Soft backing circle so the ship reads against the ocean
+      g.appendChild(el('circle', {
+        cx: iconX, cy: iconY, r: 15,
+        fill: 'rgba(255, 255, 255, 0.15)',
+      }));
+
+      // Ship emoji — larger for colonist-style port markers
       const ship = el('text', {
         x: iconX, y: iconY,
         'text-anchor':       'middle',
         'dominant-baseline': 'middle',
-        'font-size':         16,
+        'font-size':         22,
       });
       ship.textContent = '⛵';
       g.appendChild(ship);
 
-      // Rate label below ship
+      // Dark pill badge below the ship showing rate (+ resource emoji for 2:1 ports)
+      const rateText = type === 'any' ? '3:1' : `${PORT_RESOURCE_EMOJI[type]} 2:1`;
+      const pillW    = type === 'any' ? 28 : 44;
+      const labelY   = iconY + 22;
+      g.appendChild(el('rect', {
+        x: iconX - pillW / 2, y: labelY - 8,
+        width: pillW, height: 15,
+        rx: 7, ry: 7,
+        fill: 'rgba(0, 0, 0, 0.75)',
+      }));
       const label = el('text', {
-        x: iconX, y: iconY + 14,
+        x: iconX, y: labelY,
         'text-anchor':       'middle',
         'dominant-baseline': 'middle',
         'font-size':         9,
         'font-weight':       'bold',
         'font-family':       'Arial, sans-serif',
-        fill:                type === 'any' ? '#ffff99' : '#ffffff',
+        fill:                '#ffffff',
       });
-      label.textContent = type === 'any' ? '3:1' : `${PORT_RESOURCE_EMOJI[type]} 2:1`;
+      label.textContent = rateText;
       g.appendChild(label);
     }
 
