@@ -25,7 +25,8 @@ On the big maps you can zoom with the mouse wheel (or the + and − buttons) and
 
 ## What works
 
-- Rooms for 2 to 4 players with a 4-letter join code
+- Rooms for 2 to 4 players with a 4-letter join code, or an invite link (`?room=ABCD`) that joins in one tap
+- Refreshing or losing connection puts you back in your seat. If you closed the tab, opening the link again lets you take your seat back
 - Six maps, plus a "balanced" option that keeps 6s and 8s apart
 - Opening placement in snake order, with starting resources from your second settlement
 - Dice, resource production, and building roads, settlements and cities at the usual costs, with the usual
@@ -43,7 +44,6 @@ On the big maps you can zoom with the mouse wheel (or the + and − buttons) and
 - Development cards
 - Longest road and largest army points (road length is shown, but doesn't score yet)
 - Bots for empty seats
-- Rejoining after a refresh (right now refreshing the page loses your seat)
 
 ## Running it yourself
 

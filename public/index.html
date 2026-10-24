@@ -1063,6 +1063,53 @@
     }
     #copy-code-btn:hover { background: rgba(255, 255, 255, 0.22); }
 
+    #invite-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .invite-btn {
+      flex: 1;
+      background: rgba(47, 179, 68, 0.85);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .invite-btn:hover { background: rgba(47, 179, 68, 1); }
+    #share-link-btn { flex: 0 0 auto; background: rgba(255, 255, 255, 0.14); }
+    #share-link-btn:hover { background: rgba(255, 255, 255, 0.24); }
+
+    #seat-choice { display: none; margin-top: 12px; text-align: center; font-size: 0.85rem; }
+    #seat-choice-buttons { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+    .seat-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.14);
+      color: white;
+    }
+    .seat-btn:hover { background: rgba(255, 255, 255, 0.26); }
+    .seat-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.6); }
+    #lobby-error.info { color: rgba(255, 255, 255, 0.75); }
+
+    /* Player who lost connection */
+    .player-panel.offline .avatar { filter: grayscale(1); opacity: 0.55; }
+    .pc-offline {
+      display: none;
+      font-size: 0.6rem;
+      font-weight: 900;
+      color: #b23b3b;
+      text-transform: uppercase;
+    }
+    .player-panel.offline .pc-offline { display: block; }
+
     #lobby-divider {
       text-align: center;
       color: rgba(255, 255, 255, 0.35);
@@ -1206,6 +1253,10 @@
           <div id="room-code-value">----</div>
           <button id="copy-code-btn">Copy</button>
         </div>
+        <div id="invite-row">
+          <button id="copy-link-btn" class="invite-btn">🔗 Copy invite link</button>
+          <button id="share-link-btn" class="invite-btn">📤 Share</button>
+        </div>
         <div id="lobby-players-list"></div>
         <div id="win-target-row" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:0.82rem;">
           <span>Play to:</span>
@@ -1221,6 +1272,10 @@
           <select id="map-select"></select>
         </div>
         <button class="lobby-btn" id="start-game-btn" disabled>Start Game</button>
+      </div>
+      <div id="seat-choice">
+        <div id="seat-choice-text">This game has already started. Pick your seat to jump back in:</div>
+        <div id="seat-choice-buttons"></div>
       </div>
       <div id="lobby-error"></div>
     </div>
@@ -1510,10 +1565,36 @@
       let myColor  = null;
       let roomCode = null;
       let isHost   = false;
+      let onlineByColor = {};   // colour -> still connected? (from players_update)
+
+      // Seat key for this tab. sessionStorage survives a refresh but not a new tab,
+      // so two tabs in one browser are still two different players.
+      const seatToken = (() => {
+        let t = null;
+        try { t = sessionStorage.getItem('seatToken'); } catch (e) {}
+        if (!t) {
+          t = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2) + Date.now().toString(36);
+          try { sessionStorage.setItem('seatToken', t); } catch (e) {}
+        }
+        return t;
+      })();
+
+      // Room to join as soon as we're connected: from an invite link (?room=ABCD),
+      // or the room we're already in after a refresh or a dropped connection.
+      const linkRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z]/g, '');
+      let wantRoom   = linkRoom.length === 4 ? linkRoom : null;
 
       // ----- Lobby helpers -----
-      function setLobbyError(msg) {
-        document.getElementById('lobby-error').textContent = msg;
+      function setLobbyError(msg, info = false) {
+        const el = document.getElementById('lobby-error');
+        el.textContent = msg;
+        el.classList.toggle('info', info);
+      }
+
+      function inviteLink() {
+        return `${location.origin}${location.pathname}?room=${roomCode}`;
       }
 
       function updateLobbyPlayers(players, hostColor) {
@@ -1538,6 +1619,9 @@
         if (winTargetSelect) winTargetSelect.disabled = !isHost;
         const mapSelect = document.getElementById('map-select');
         if (mapSelect) mapSelect.disabled = !isHost;
+
+        onlineByColor = Object.fromEntries(players.map(p => [p.color, p.connected]));
+        if (board) { updatePlayerPanels(); updateTurnUI(); }
       }
 
       // Lobby map list: smallest first
@@ -1573,8 +1657,13 @@
 
         document.getElementById('room-code-value').textContent = rc;
         document.getElementById('lobby-room-panel').style.display = 'block';
+        document.getElementById('seat-choice').style.display = 'none';
         updateLobbyPlayers(players, hostColor);
         setLobbyError('');
+
+        // Put the room in the address bar: a refresh rejoins, and the URL is the invite link
+        wantRoom = rc;
+        history.replaceState(null, '', `${location.pathname}?room=${rc}`);
       });
 
       socket.on('players_update', ({ players, hostColor }) => {
@@ -1587,12 +1676,46 @@
         if (startBtn) startBtn.disabled = false;
       });
 
-      socket.on('room_error', ({ reason }) => setLobbyError(reason));
+      socket.on('room_error', ({ reason, notFound }) => {
+        setLobbyError(reason);
+        if (notFound && wantRoom && (!roomCode || roomCode === wantRoom)) {
+          // The room is gone (finished long ago, or the server restarted): back to the start
+          if (roomCode) setLobbyError('That game has ended or the server restarted. Create a new room to play again.');
+          wantRoom = null;
+          roomCode = null;
+          history.replaceState(null, '', location.pathname);
+          document.getElementById('lobby-room-panel').style.display = 'none';
+          lobbyOverlay.style.display = '';
+        }
+      });
+
+      // Game already started and we have no seat: offer the seats of players who left
+      socket.on('seat_choice', ({ roomCode: rc, seats }) => {
+        const box = document.getElementById('seat-choice-buttons');
+        box.innerHTML = '';
+        for (const color of seats) {
+          const btn = document.createElement('button');
+          btn.className = 'seat-btn';
+          btn.innerHTML = `<span class="seat-dot" style="background:${PLAYER_COLORS[color]}"></span>${cap(color)}`;
+          btn.addEventListener('click', () =>
+            socket.emit('join_room', { roomCode: rc, token: seatToken, takeSeat: color }));
+          box.appendChild(btn);
+        }
+        document.getElementById('seat-choice').style.display = 'block';
+        setLobbyError('');
+      });
+
+      // This seat was opened in another tab; that tab has it now
+      socket.on('session_moved', () => {
+        wantRoom = null;
+        lobbyOverlay.style.display = '';
+        setLobbyError('This game is now open in another tab.');
+      });
 
       // ----- Lobby button handlers -----
       document.getElementById('create-room-btn').addEventListener('click', () => {
         setLobbyError('');
-        socket.emit('create_room');
+        socket.emit('create_room', { token: seatToken });
       });
 
       document.getElementById('join-submit-btn').addEventListener('click', () => {
@@ -1600,8 +1723,39 @@
         const code  = input.value.trim().toUpperCase();
         if (code.length !== 4) { setLobbyError('Enter a 4-letter room code'); return; }
         setLobbyError('');
-        socket.emit('join_room', { roomCode: code });
+        if (!roomCode) wantRoom = code;
+        socket.emit('join_room', { roomCode: code, token: seatToken });
       });
+
+      document.getElementById('copy-link-btn').addEventListener('click', e => {
+        if (!roomCode) return;
+        const btn = e.currentTarget;
+        navigator.clipboard.writeText(inviteLink())
+          .then(() => {
+            btn.textContent = '✅ Link copied';
+            setTimeout(() => { btn.textContent = '🔗 Copy invite link'; }, 1500);
+          })
+          .catch(() => setLobbyError(inviteLink(), true)); // no clipboard (plain http): show it to copy by hand
+      });
+
+      // Phones: open the share sheet (WhatsApp etc.)
+      const shareBtn = document.getElementById('share-link-btn');
+      if (!navigator.share) shareBtn.style.display = 'none';
+      shareBtn.addEventListener('click', () => {
+        if (!roomCode) return;
+        navigator.share({ title: 'Catan Clone', text: `Join my Catan game! Room ${roomCode}`, url: inviteLink() })
+          .catch(() => {});
+      });
+
+      // (Re)join the wanted room whenever the connection comes up, including after a drop
+      function joinWantedRoom() {
+        if (!wantRoom) return;
+        if (!roomCode) setLobbyError(`Joining room ${wantRoom}…`, true);
+        socket.emit('join_room', { roomCode: wantRoom, token: seatToken });
+      }
+      if (linkRoom.length === 4) document.getElementById('room-code-input').value = linkRoom;
+      socket.on('connect', joinWantedRoom);
+      if (socket.connected) joinWantedRoom();
 
       document.getElementById('room-code-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') document.getElementById('join-submit-btn').click();
@@ -1714,7 +1868,8 @@
         document.getElementById('winner-overlay').classList.add('peek'));
       document.getElementById('show-results-btn').addEventListener('click', () =>
         document.getElementById('winner-overlay').classList.remove('peek'));
-      document.getElementById('home-btn').addEventListener('click', () => location.reload());
+      // Back to the start page (leaves the room)
+      document.getElementById('home-btn').addEventListener('click', () => { location.href = location.pathname; });
 
       document.getElementById('play-again-btn').addEventListener('click', () => {
         document.getElementById('winner-overlay').style.display = 'none';
@@ -1823,6 +1978,7 @@
           const myDiscard = gs.pendingDiscards && gs.pendingDiscards[myColor];
           if (gs.gameEnded)               bannerText.textContent = `${cap(gs.winner)} won!`;
           else if (turnPhase === 'discard') bannerText.textContent = myDiscard ? `Discard ${myDiscard} cards` : 'Waiting for discards';
+          else if (!isMyTurn && onlineByColor[active] === false) bannerText.textContent = `Waiting for ${cap(active)} to reconnect`;
           else if (!isMyTurn)             bannerText.textContent = `${cap(active)}'s Turn`;
           else if (isRollPhase)           bannerText.textContent = 'Roll the dice';
           else if (turnPhase === 'robber') bannerText.textContent = 'Move the robber';
@@ -1860,6 +2016,7 @@
               <span class="pc-name">${cap(color)}</span>
               <span class="avatar"></span>
               <span class="vp-ribbon player-vp" title="Victory points">0</span>
+              <span class="pc-offline">offline</span>
               <span class="turn-badge">TURN</span>
               <span class="you-badge">YOU</span>
             </div>
@@ -1888,6 +2045,7 @@
           if (!inGame) return;
 
           panel.classList.toggle('is-me', player === myColor);
+          panel.classList.toggle('offline', onlineByColor[player] === false);
           panel.querySelector('.player-vp').textContent = Board.calculateVP(board, player);
           panel.querySelector('.pc-road').textContent  = Board.longestRoad(board, player);
 

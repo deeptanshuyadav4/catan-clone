@@ -42,8 +42,14 @@ function nextColor(room) {
 }
 
 function socketIdForColor(room, color) {
-  const entry = Object.entries(room.players).find(([, p]) => p.color === color);
-  return entry ? entry[0] : null;
+  const p = Object.values(room.players).find(pl => pl.color === color);
+  return p && p.connected ? p.socketId : null;
+}
+
+// Each browser tab sends a random seat key, kept across refreshes, so a player
+// who reloads or loses connection gets their own seat back.
+function validToken(token) {
+  return typeof token === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(token);
 }
 
 function robberBlockReason(board) {
@@ -362,51 +368,84 @@ app.use(express.static('public'));
 io.on('connection', (socket) => {
   console.log(`client connected    [${socket.id}]`);
 
-  socket.on('create_room', () => {
+  // Puts this socket in the given seat. If the seat was open in another tab,
+  // that tab is told and dropped, so one seat never has two sockets.
+  function takeSeat(code, token, player, isRejoin) {
+    const room    = rooms[code];
+    const old     = player.socketId && player.socketId !== socket.id && io.sockets.sockets.get(player.socketId);
+    const wasAway = !player.connected;
+    player.socketId  = socket.id;
+    player.connected = true;
+    if (old) {
+      old.emit('session_moved');
+      old.roomCode = null;
+      old.disconnect(true);
+    }
+
+    socket.roomCode    = code;
+    socket.playerColor = player.color;
+    socket.join(code);
+    cancelCleanup(code);
+
+    socket.emit('room_joined', {
+      roomCode:    code,
+      playerColor: player.color,
+      isHost:      player.color === room.hostColor,
+      players:     playersPayload(room),
+      hostColor:   room.hostColor,
+    });
+    broadcastPlayersUpdate(code);
+    if (room.started) {
+      if (isRejoin && wasAway) addLog(room, `${player.color} is back`);
+      broadcast(code);
+    }
+  }
+
+  socket.on('create_room', (payload = {}) => {
+    const token = validToken(payload.token) ? payload.token : socket.id;
     const code  = genCode();
     const color = 'red';
     rooms[code] = {
       board:        null,
       rollLog:      [],
-      players:      { [socket.id]: { color, connected: true } },
+      players:      { [token]: { color, connected: true, socketId: socket.id } },
       hostSocketId: socket.id,
       hostColor:    color,
       started:      false,
       cleanupTimer: null,
       winTarget:    10,
     };
-    socket.roomCode    = code;
-    socket.playerColor = color;
-    socket.join(code);
-    socket.emit('room_joined', {
-      roomCode:    code,
-      playerColor: color,
-      isHost:      true,
-      players:     playersPayload(rooms[code]),
-      hostColor:   color,
-    });
+    takeSeat(code, token, rooms[code].players[token], false);
   });
 
-  socket.on('join_room', ({ roomCode }) => {
-    const code = (roomCode || '').toUpperCase().trim();
-    const room = rooms[code];
-    if (!room)        return socket.emit('room_error', { reason: `Room "${code}" not found` });
-    if (room.started) return socket.emit('room_error', { reason: 'Game already in progress' });
-    const color = nextColor(room);
-    if (!color)       return socket.emit('room_error', { reason: 'Room is full (4 players max)' });
+  socket.on('join_room', (payload = {}) => {
+    const code  = String(payload.roomCode || '').toUpperCase().trim();
+    const token = validToken(payload.token) ? payload.token : socket.id;
+    const room  = rooms[code];
+    if (!room) return socket.emit('room_error', { reason: `Room "${code}" not found`, notFound: true });
 
-    room.players[socket.id] = { color, connected: true };
-    socket.roomCode    = code;
-    socket.playerColor = color;
-    socket.join(code);
-    socket.emit('room_joined', {
-      roomCode:    code,
-      playerColor: color,
-      isHost:      false,
-      players:     playersPayload(room),
-      hostColor:   room.hostColor,
-    });
-    broadcastPlayersUpdate(code);
+    // Same tab coming back (refresh, lost connection): give the seat back
+    const mine = room.players[token];
+    if (mine) return takeSeat(code, token, mine, room.started);
+
+    if (room.started) {
+      // Lost their key (closed the tab): let them pick an empty seat
+      const free = Object.entries(room.players).filter(([, p]) => !p.connected);
+      const wanted = free.find(([, p]) => p.color === payload.takeSeat);
+      if (wanted) {
+        const [oldToken, player] = wanted;
+        delete room.players[oldToken];
+        room.players[token] = player;
+        return takeSeat(code, token, player, true);
+      }
+      if (free.length) return socket.emit('seat_choice', { roomCode: code, seats: free.map(([, p]) => p.color) });
+      return socket.emit('room_error', { reason: 'Game already in progress' });
+    }
+
+    const color = nextColor(room);
+    if (!color) return socket.emit('room_error', { reason: 'Room is full (4 players max)' });
+    room.players[token] = { color, connected: true, socketId: socket.id };
+    takeSeat(code, token, room.players[token], false);
   });
 
   socket.on('start_game', (payload = {}) => {
@@ -453,19 +492,25 @@ io.on('connection', (socket) => {
     const room = rooms[code];
     if (!room) return;
 
-    if (room.players[socket.id]) room.players[socket.id].connected = false;
+    // Only the socket currently holding the seat counts (an old tab may close later)
+    const player = Object.values(room.players).find(p => p.socketId === socket.id);
+    if (!player) return;
+    player.connected = false;
 
-    if (socket.playerColor === room.hostColor) {
-      const newHostEntry = Object.entries(room.players).find(([, p]) => p.connected);
-      if (newHostEntry) {
-        const [newHostId, newHostPlayer] = newHostEntry;
-        room.hostSocketId = newHostId;
-        room.hostColor    = newHostPlayer.color;
-        io.to(newHostId).emit('promoted_host');
+    if (player.color === room.hostColor) {
+      const newHost = Object.values(room.players).find(p => p.connected);
+      if (newHost) {
+        room.hostSocketId = newHost.socketId;
+        room.hostColor    = newHost.color;
+        io.to(newHost.socketId).emit('promoted_host');
       }
     }
 
     broadcastPlayersUpdate(code);
+    if (room.started) {
+      addLog(room, `${player.color} lost connection`);
+      broadcast(code);
+    }
 
     const anyConnected = Object.values(room.players).some(p => p.connected);
     if (!anyConnected) scheduleCleanup(code);
