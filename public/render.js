@@ -83,6 +83,7 @@ window.Render = (() => {
       fill:           '#f4ead5',
       stroke:         '#00000030',
       'stroke-width': 1,
+      'pointer-events': 'none',
     }));
 
     // Number text
@@ -95,6 +96,7 @@ window.Render = (() => {
       'font-weight':       'bold',
       'font-family':       'Arial, sans-serif',
       fill:                ink,
+      'pointer-events':    'none',
     });
     txt.textContent = number;
     svg.appendChild(txt);
@@ -111,6 +113,7 @@ window.Render = (() => {
         cy:   dotY,
         r:    dotR,
         fill: ink,
+        'pointer-events': 'none',
       }));
     }
   }
@@ -129,6 +132,7 @@ window.Render = (() => {
       fill:          '#1a1a2e',
       stroke:        '#777',
       'stroke-width': 1.5,
+      'pointer-events': 'none',
     }));
 
     // Body
@@ -140,6 +144,7 @@ window.Render = (() => {
       fill:          '#1a1a2e',
       stroke:        '#777',
       'stroke-width': 1.5,
+      'pointer-events': 'none',
     }));
   }
 

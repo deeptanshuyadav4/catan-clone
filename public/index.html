@@ -515,6 +515,157 @@
     }
     #trade-cancel-btn:hover { background: rgba(255, 255, 255, 0.22); }
 
+    /* ── DISCARD OVERLAY ──────────────────────────────────────── */
+    #discard-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      z-index: 160;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #discard-modal {
+      background: #0d2035;
+      border: 2px solid rgba(255, 130, 80, 0.45);
+      border-radius: 16px;
+      padding: 24px 28px;
+      min-width: 340px;
+      color: white;
+    }
+
+    #discard-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    #discard-subtitle {
+      font-size: 0.78rem;
+      color: rgba(255, 255, 255, 0.65);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    #discard-subtitle strong { color: #ffb347; }
+
+    .discard-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+
+    .discard-item {
+      flex: 1;
+      min-width: 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px 4px;
+    }
+    .discard-item .d-icon  { font-size: 1.2rem; line-height: 1; }
+    .discard-item .d-owned { font-size: 0.6rem; color: rgba(255, 255, 255, 0.5); }
+    .discard-item .d-stepper { display: flex; align-items: center; gap: 6px; }
+    .discard-item .d-stepper button {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.18);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .discard-item .d-stepper button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.3); }
+    .discard-item .d-stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .discard-item .d-selected { font-size: 0.85rem; font-weight: bold; min-width: 14px; text-align: center; }
+
+    #discard-progress {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #ffb347;
+    }
+    #discard-progress.ok { color: #7fffb0; }
+
+    #discard-error-msg {
+      min-height: 1.1em;
+      font-size: 0.72rem;
+      color: #ff8080;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    #discard-confirm-btn {
+      display: block;
+      margin: 0 auto;
+      background: white;
+      color: #1a1a2e;
+      padding: 8px 28px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.82rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #discard-confirm-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+    /* ── STEAL OVERLAY ────────────────────────────────────────── */
+    #steal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 160;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #steal-modal {
+      background: #0d2035;
+      border: 2px solid rgba(255, 130, 80, 0.45);
+      border-radius: 16px;
+      padding: 24px 28px;
+      min-width: 300px;
+      color: white;
+      text-align: center;
+    }
+
+    #steal-title    { font-size: 1.05rem; font-weight: bold; margin-bottom: 6px; }
+    #steal-subtitle { font-size: 0.78rem; color: rgba(255, 255, 255, 0.65); margin-bottom: 16px; }
+
+    #steal-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+
+    .steal-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 76px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 10px 8px;
+      color: white;
+      cursor: pointer;
+    }
+    .steal-btn:hover { background: rgba(255, 255, 255, 0.2); border-color: #ffd700; }
+    .steal-btn .s-dot   { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.6); }
+    .steal-btn .s-name  { font-size: 0.82rem; font-weight: bold; }
+    .steal-btn .s-cards { font-size: 0.62rem; color: rgba(255, 255, 255, 0.6); }
+
+    #steal-cancel-btn {
+      background: rgba(255, 255, 255, 0.13);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #steal-cancel-btn:hover { background: rgba(255, 255, 255, 0.22); }
+
     /* ── LOBBY OVERLAY ────────────────────────────────────────── */
     #lobby-overlay {
       display: flex;
@@ -776,6 +927,28 @@
     </div>
   </div>
 
+  <!-- DISCARD OVERLAY -->
+  <div id="discard-overlay">
+    <div id="discard-modal">
+      <div id="discard-title">🔥 Discard Resources</div>
+      <div id="discard-subtitle">Rolled a 7 with 8+ cards — discard <strong id="discard-needed-count">0</strong> cards</div>
+      <div id="discard-row" class="discard-row"></div>
+      <div id="discard-progress">0 / 0 selected</div>
+      <div id="discard-error-msg"></div>
+      <button id="discard-confirm-btn" disabled>Discard</button>
+    </div>
+  </div>
+
+  <!-- STEAL OVERLAY (robber tile touches 2+ opponents) -->
+  <div id="steal-overlay">
+    <div id="steal-modal">
+      <div id="steal-title">🦹 Steal a Card</div>
+      <div id="steal-subtitle">Pick a player to steal 1 random card from</div>
+      <div id="steal-row"></div>
+      <button id="steal-cancel-btn">Pick a different tile</button>
+    </div>
+  </div>
+
   <!-- WINNER OVERLAY (hidden until someone reaches 10 VP) -->
   <div id="winner-overlay">
     <div id="winner-box">
@@ -957,6 +1130,7 @@
       let currentPlayer = 'red';
       let currentMode   = 'settlement';
       let errorTimer    = null;
+      let phaseNoticeShown = false; // info bar is showing a discard/robber prompt
 
       let myColor  = null;
       let roomCode = null;
@@ -1087,12 +1261,13 @@
         clearTimeout(errorTimer);
         infoBar.style.color = '#ff8080';
         infoBar.textContent = reason;
-        errorTimer = setTimeout(clearInfoBar, 2000);
+        errorTimer = setTimeout(() => { clearInfoBar(); updateTurnUI(); }, 2000);
       }
 
       function clearInfoBar() {
         clearTimeout(errorTimer);
         errorTimer = null;
+        phaseNoticeShown = false;
         infoBar.style.color = '';
         infoBar.textContent = 'Click a tile to inspect it or move the robber';
       }
@@ -1159,14 +1334,30 @@
           tradeBtn.style.display     = '';
           openingLabel.style.display = 'none';
 
-          const isRollPhase  = board.gameState.turnPhase === 'roll';
-          const isBuildPhase = board.gameState.turnPhase === 'build';
+          const turnPhase    = board.gameState.turnPhase;
+          const isRollPhase  = turnPhase === 'roll';
+          const isBuildPhase = turnPhase === 'build';
           rollBtn.disabled       = !isRollPhase  || !isMyTurn;
           rollBtn.style.opacity  = (isRollPhase  && isMyTurn) ? '' : '0.4';
           endBtn.disabled        = !isBuildPhase || !isMyTurn;
           endBtn.style.opacity   = (isBuildPhase && isMyTurn) ? '' : '0.4';
           tradeBtn.disabled      = !isBuildPhase || !isMyTurn;
           tradeBtn.style.opacity = (isBuildPhase && isMyTurn) ? '' : '0.4';
+
+          if (!errorTimer) {
+            if (turnPhase === 'discard') {
+              const pending = Object.keys(board.gameState.pendingDiscards || {}).length;
+              infoBar.style.color = '#ffb347';
+              infoBar.textContent = `Rolled a 7 — waiting on ${pending} player${pending === 1 ? '' : 's'} to discard`;
+              phaseNoticeShown = true;
+            } else if (turnPhase === 'robber') {
+              infoBar.style.color = isMyTurn ? '#ffb347' : '';
+              infoBar.textContent = isMyTurn ? 'Move the robber — click a tile' : `Waiting for ${active} to move the robber`;
+              phaseNoticeShown = true;
+            } else if (phaseNoticeShown) {
+              clearInfoBar();
+            }
+          }
         }
 
         syncPlayerAndMode();
@@ -1227,12 +1418,20 @@
         const type   = board.tiles[idx];
         const number = board.numbers[idx];
 
+        const canMoveRobber = !board.gameState.gameEnded &&
+          board.gameState.turnPhase === 'robber' && myColor === Board.getCurrentPlayer(board);
+        if (canMoveRobber) {
+          if (idx === board.robber) { showError('robber must move to a different tile'); return; }
+          const victims = Board.robberVictims(board, idx, myColor);
+          if (victims.length > 1) openStealModal(idx, victims);
+          else socket.emit('action', { type: 'move_robber', tileIndex: idx });
+          return;
+        }
+
         if (type === 'desert') {
           infoBar.textContent = 'Desert — produces nothing, robber lives here';
           return;
         }
-
-        socket.emit('action', { type: 'move_robber', tileIndex: idx });
 
         const resource = RESOURCE[type];
         const prob     = PROB[number] || 0;
@@ -1247,6 +1446,12 @@
 
         if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building'); return;
+        }
+        if (!isOpening && board.gameState.turnPhase === 'discard') {
+          showError('players must discard before continuing'); return;
+        }
+        if (!isOpening && board.gameState.turnPhase === 'robber') {
+          showError('move the robber before continuing'); return;
         }
         if (myColor && myColor !== activePlayer) {
           const { x, y } = board.graph.vertices[vIdx];
@@ -1287,6 +1492,12 @@
 
         if (!isOpening && board.gameState.turnPhase === 'roll') {
           showError('roll dice before building'); return;
+        }
+        if (!isOpening && board.gameState.turnPhase === 'discard') {
+          showError('players must discard before continuing'); return;
+        }
+        if (!isOpening && board.gameState.turnPhase === 'robber') {
+          showError('move the robber before continuing'); return;
         }
         if (myColor && myColor !== activePlayer) {
           const edge = board.graph.edges[eIdx];
@@ -1434,6 +1645,103 @@
         closeTrade();
       });
 
+      // ----- Discard modal (rolled a 7 with 8+ cards) -----
+      let discardSelection = {};
+      let discardNeeded    = 0;
+
+      function totalDiscardSelected() {
+        return RESOURCES.reduce((sum, r) => sum + (discardSelection[r] || 0), 0);
+      }
+
+      function renderDiscardRow() {
+        const hand = (board && board.players[myColor]) || {};
+        const row  = document.getElementById('discard-row');
+        row.innerHTML = '';
+        for (const r of RESOURCES) {
+          const owned    = hand[r] || 0;
+          const selected = discardSelection[r] || 0;
+          const item = document.createElement('div');
+          item.className = 'discard-item';
+          item.innerHTML = `
+            <span class="d-icon">${RES_EMOJI[r]}</span>
+            <span class="d-owned">have ${owned}</span>
+            <div class="d-stepper">
+              <button type="button" data-dir="-1" ${selected <= 0 ? 'disabled' : ''}>−</button>
+              <span class="d-selected">${selected}</span>
+              <button type="button" data-dir="1" ${(selected >= owned || totalDiscardSelected() >= discardNeeded) ? 'disabled' : ''}>+</button>
+            </div>
+          `;
+          item.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const dir  = parseInt(btn.dataset.dir, 10);
+              const next = (discardSelection[r] || 0) + dir;
+              if (next < 0 || next > owned) return;
+              if (dir > 0 && totalDiscardSelected() >= discardNeeded) return;
+              discardSelection[r] = next;
+              renderDiscardRow();
+              refreshDiscardConfirm();
+            });
+          });
+          row.appendChild(item);
+        }
+      }
+
+      function refreshDiscardConfirm() {
+        const total    = totalDiscardSelected();
+        const progress = document.getElementById('discard-progress');
+        progress.textContent = `${total} / ${discardNeeded} selected`;
+        progress.classList.toggle('ok', total === discardNeeded);
+        document.getElementById('discard-confirm-btn').disabled = total !== discardNeeded;
+      }
+
+      function openDiscardModal(count) {
+        closeTrade();
+        discardNeeded    = count;
+        discardSelection = {};
+        document.getElementById('discard-needed-count').textContent = count;
+        document.getElementById('discard-error-msg').textContent    = '';
+        renderDiscardRow();
+        refreshDiscardConfirm();
+        document.getElementById('discard-overlay').style.display = 'flex';
+      }
+
+      document.getElementById('discard-confirm-btn').addEventListener('click', () => {
+        if (totalDiscardSelected() !== discardNeeded) return;
+        document.getElementById('discard-error-msg').textContent = '';
+        socket.emit('action', { type: 'discard_resources', resources: { ...discardSelection } });
+      });
+
+      socket.on('must_discard', ({ count }) => openDiscardModal(count));
+
+      // ----- Steal modal (robber tile touches 2+ opponents) -----
+      function openStealModal(tileIdx, victims) {
+        const row = document.getElementById('steal-row');
+        row.innerHTML = '';
+        for (const victim of victims) {
+          const name  = victim.charAt(0).toUpperCase() + victim.slice(1);
+          const cards = Board.handSize(board, victim);
+          const btn   = document.createElement('button');
+          btn.className = 'steal-btn';
+          btn.innerHTML = `
+            <span class="s-dot" style="background:${PLAYER_COLORS[victim]}"></span>
+            <span class="s-name">${name}</span>
+            <span class="s-cards">${cards} card${cards === 1 ? '' : 's'}</span>
+          `;
+          btn.addEventListener('click', () => {
+            closeSteal();
+            socket.emit('action', { type: 'move_robber', tileIndex: tileIdx, victim });
+          });
+          row.appendChild(btn);
+        }
+        document.getElementById('steal-overlay').style.display = 'flex';
+      }
+
+      function closeSteal() {
+        document.getElementById('steal-overlay').style.display = 'none';
+      }
+
+      document.getElementById('steal-cancel-btn').addEventListener('click', closeSteal);
+
       // ----- Socket state handler — single render path -----
       socket.on('state', ({ board: newBoard, rollLog: newLog }) => {
         const wasEnded   = board && board.gameState.gameEnded;
@@ -1458,11 +1766,27 @@
           rollLogEl.appendChild(p);
         }
 
+        const myPending      = newBoard.gameState.pendingDiscards && newBoard.gameState.pendingDiscards[myColor];
+        const discardOverlay = document.getElementById('discard-overlay');
+        if (!myPending) {
+          discardOverlay.style.display = 'none';
+        } else if (discardOverlay.style.display !== 'flex') {
+          openDiscardModal(myPending);
+        }
+        if (newBoard.gameState.turnPhase !== 'robber') closeSteal();
+
         if (newBoard.gameState.gameEnded && !wasEnded) triggerWin(newBoard.gameState.winner);
         if (!newBoard.gameState.gameEnded) document.getElementById('winner-overlay').style.display = 'none';
       });
 
-      socket.on('action_error', ({ reason }) => showError(reason));
+      socket.on('action_error', ({ reason }) => {
+        const discardOverlay = document.getElementById('discard-overlay');
+        if (discardOverlay.style.display === 'flex') {
+          document.getElementById('discard-error-msg').textContent = reason;
+        } else {
+          showError(reason);
+        }
+      });
     });
   </script>
 </body>

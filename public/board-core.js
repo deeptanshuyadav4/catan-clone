@@ -13,6 +13,9 @@ const TILE_RESOURCE = {
   forest: 'wood', hills: 'brick', fields: 'wheat', pasture: 'wool', mountains: 'ore', desert: null,
 };
 
+const RESOURCES = ['wood', 'brick', 'wheat', 'wool', 'ore'];
+const DISCARD_LIMIT = 7;
+
 const BUILD_COSTS = {
   road:       { wood: 1, brick: 1 },
   settlement: { wood: 1, brick: 1, wheat: 1, wool: 1 },
@@ -223,6 +226,7 @@ function generateBoardWithGraph(seed) {
     playerOrder:          ['red', 'blue', 'white', 'orange'],
     turnPhase:            'roll',
     diceRolled:           false,
+    pendingDiscards:      {},
     winner:               null,
     gameEnded:            false,
   };
@@ -276,9 +280,88 @@ function rollDice() {
   return { d1, d2, total: d1 + d2 };
 }
 
+function handSize(board, playerId) {
+  const res = board.players[playerId];
+  if (!res) return 0;
+  return RESOURCES.reduce((sum, r) => sum + (res[r] || 0), 0);
+}
+
+function computeDiscards(board) {
+  const discards = {};
+  for (const playerId of board.gameState.playerOrder) {
+    const total = handSize(board, playerId);
+    if (total > DISCARD_LIMIT) discards[playerId] = Math.floor(total / 2);
+  }
+  return discards;
+}
+
+// Opponents with a settlement/city touching this tile who have at least 1 card.
+function robberVictims(board, tileIdx, thiefId) {
+  const victims = [];
+  board.graph.vertices.forEach((vertex, vIdx) => {
+    if (!vertex.tiles.includes(tileIdx)) return;
+    const owner = board.pieces.settlements[vIdx] || board.pieces.cities[vIdx];
+    if (!owner || owner === thiefId || victims.includes(owner)) return;
+    if (handSize(board, owner) > 0) victims.push(owner);
+  });
+  return victims;
+}
+
+// Moves the robber and steals 1 random card. With one possible victim it is
+// picked automatically; with several, victimId must be one of them.
+function moveRobber(board, tileIdx, thiefId, victimId) {
+  if (!Number.isInteger(tileIdx) || tileIdx < 0 || tileIdx >= board.tiles.length) {
+    return { valid: false, reason: 'invalid tile' };
+  }
+  if (tileIdx === board.robber) return { valid: false, reason: 'robber must move to a different tile' };
+
+  const victims = robberVictims(board, tileIdx, thiefId);
+  if (victims.length === 1) victimId = victims[0];
+  if (victims.length > 1 && !victims.includes(victimId)) {
+    return { valid: false, reason: 'choose a player to steal from' };
+  }
+
+  board.robber = tileIdx;
+  board.gameState.turnPhase = 'build';
+  if (victims.length === 0) return { valid: true, victim: null, stolen: null, reason: '' };
+
+  const res    = board.players[victimId];
+  const pool   = RESOURCES.flatMap(r => Array(res[r] || 0).fill(r));
+  const stolen = pool[Math.floor(Math.random() * pool.length)];
+  res[stolen] -= 1;
+  board.players[thiefId][stolen] = (board.players[thiefId][stolen] || 0) + 1;
+  return { valid: true, victim: victimId, stolen, reason: '' };
+}
+
+function discardResources(board, playerId, resources) {
+  const gs     = board.gameState;
+  const needed = gs.pendingDiscards && gs.pendingDiscards[playerId];
+  if (!needed) return { valid: false, reason: 'nothing to discard' };
+
+  let total = 0;
+  for (const [r, amount] of Object.entries(resources || {})) {
+    if (!RESOURCES.includes(r))               return { valid: false, reason: `invalid resource: ${r}` };
+    if (!Number.isInteger(amount) || amount < 0) return { valid: false, reason: 'invalid discard amount' };
+    total += amount;
+  }
+  if (total !== needed) return { valid: false, reason: `must discard exactly ${needed} cards` };
+
+  const res = board.players[playerId];
+  for (const [r, amount] of Object.entries(resources)) {
+    if (amount > (res[r] || 0)) return { valid: false, reason: `not enough ${r} to discard` };
+  }
+
+  for (const [r, amount] of Object.entries(resources)) res[r] -= amount;
+  delete gs.pendingDiscards[playerId];
+  if (Object.keys(gs.pendingDiscards).length === 0) gs.turnPhase = 'robber';
+
+  return { valid: true, reason: '' };
+}
+
 function distributeResources(board, rolledNumber) {
   if (rolledNumber === 7) {
-    return { type: 'robber', log: 'Rolled 7 — robber mechanics not implemented yet' };
+    const discards = computeDiscards(board);
+    return { type: 'robber', log: 'Rolled 7 — move the robber', discards };
   }
 
   const producingTiles = new Set();
@@ -426,11 +509,17 @@ const BoardCore = {
   computeGraph,
   TILE_RESOURCE,
   BUILD_COSTS,
+  RESOURCES,
   canPlaceSettlement,
   canPlaceRoad,
   canUpgradeToCity,
   rollDice,
   distributeResources,
+  handSize,
+  computeDiscards,
+  discardResources,
+  robberVictims,
+  moveRobber,
   getCurrentPlayer,
   endTurn,
   advanceOpening,

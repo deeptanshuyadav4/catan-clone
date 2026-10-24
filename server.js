@@ -41,6 +41,18 @@ function nextColor(room) {
   return COLORS.find(c => !used.has(c)) || null;
 }
 
+function socketIdForColor(room, color) {
+  const entry = Object.entries(room.players).find(([, p]) => p.color === color);
+  return entry ? entry[0] : null;
+}
+
+function robberBlockReason(board) {
+  const tp = board.gameState.turnPhase;
+  if (tp === 'discard') return 'players must discard before continuing';
+  if (tp === 'robber')  return 'move the robber before continuing';
+  return null;
+}
+
 function playersPayload(room) {
   return COLORS
     .filter(c => Object.values(room.players).some(p => p.color === c))
@@ -138,11 +150,25 @@ function handleAction(socket, action) {
       if (board.gameState.turnPhase !== 'roll')  return actionError(socket, 'already rolled this turn');
       const roll   = Board.rollDice();
       const result = Board.distributeResources(board, roll.total);
-      board.gameState.turnPhase  = 'build';
       board.gameState.diceRolled = true;
       board.lastRoll = roll;
       rollLog.unshift(result.log);
-      if (rollLog.length > 50) rollLog.pop();
+
+      if (roll.total === 7) {
+        const discards = result.discards || {};
+        const colors   = Object.keys(discards);
+        board.gameState.pendingDiscards = discards;
+        board.gameState.turnPhase       = colors.length > 0 ? 'discard' : 'robber';
+        for (const color of colors) {
+          rollLog.unshift(`${color} must discard ${discards[color]} cards`);
+          const sid = socketIdForColor(room, color);
+          if (sid) io.to(sid).emit('must_discard', { count: discards[color] });
+        }
+      } else {
+        board.gameState.turnPhase = 'build';
+      }
+
+      if (rollLog.length > 50) rollLog.length = 50;
       broadcast(socket.roomCode);
       break;
     }
@@ -153,6 +179,10 @@ function handleAction(socket, action) {
       if (board.gameState.gameEnded)  return actionError(socket, 'game has ended');
       const isOpening = board.gameState.phase === 'opening';
       if (!isOpening && board.gameState.turnPhase === 'roll') return actionError(socket, 'roll dice before building');
+      if (!isOpening) {
+        const block = robberBlockReason(board);
+        if (block) return actionError(socket, block);
+      }
 
       const place = Board.canPlaceSettlement(board, vertex, myColor);
       if (!place.valid) return actionError(socket, place.reason);
@@ -183,6 +213,7 @@ function handleAction(socket, action) {
       if (board.gameState.gameEnded)  return actionError(socket, 'game has ended');
       if (board.gameState.phase === 'opening')   return actionError(socket, 'no cities during opening');
       if (board.gameState.turnPhase === 'roll')  return actionError(socket, 'roll dice before building');
+      { const block = robberBlockReason(board); if (block) return actionError(socket, block); }
 
       const place = Board.canUpgradeToCity(board, vertex, myColor);
       if (!place.valid) return actionError(socket, place.reason);
@@ -205,6 +236,10 @@ function handleAction(socket, action) {
       if (board.gameState.gameEnded) return actionError(socket, 'game has ended');
       const isOpening = board.gameState.phase === 'opening';
       if (!isOpening && board.gameState.turnPhase === 'roll') return actionError(socket, 'roll dice before building');
+      if (!isOpening) {
+        const block = robberBlockReason(board);
+        if (block) return actionError(socket, block);
+      }
 
       const place = Board.canPlaceRoad(board, edge, myColor);
       if (!place.valid) return actionError(socket, place.reason);
@@ -247,9 +282,34 @@ function handleAction(socket, action) {
     }
 
     case 'move_robber': {
-      const { tileIndex } = action;
+      const { tileIndex, victim } = action;
       if (typeof tileIndex !== 'number') return actionError(socket, 'invalid action params');
-      board.robber = tileIndex;
+      if (board.gameState.gameEnded)     return actionError(socket, 'game has ended');
+      if (board.gameState.turnPhase !== 'robber') return actionError(socket, 'not time to move the robber');
+      if (myColor !== Board.getCurrentPlayer(board)) return actionError(socket, "it's not your turn");
+
+      const result = Board.moveRobber(board, tileIndex, myColor, victim);
+      if (!result.valid) return actionError(socket, result.reason);
+
+      rollLog.unshift(result.victim
+        ? `${myColor} moved the robber and stole a card from ${result.victim}`
+        : `${myColor} moved the robber`);
+      if (rollLog.length > 50) rollLog.length = 50;
+      broadcast(socket.roomCode);
+      break;
+    }
+
+    case 'discard_resources': {
+      if (board.gameState.turnPhase !== 'discard') return actionError(socket, 'no discard pending');
+      const { resources } = action;
+      if (!resources || typeof resources !== 'object') return actionError(socket, 'invalid action params');
+
+      const result = Board.discardResources(board, myColor, resources);
+      if (!result.valid) return actionError(socket, result.reason);
+
+      const total = Object.values(resources).reduce((s, n) => s + n, 0);
+      rollLog.unshift(`${myColor} discarded ${total} cards`);
+      if (rollLog.length > 50) rollLog.length = 50;
       broadcast(socket.roomCode);
       break;
     }
@@ -268,8 +328,12 @@ function handleAction(socket, action) {
       const colors  = connectedColors(room);
       board.players = {};
       for (const c of colors) board.players[c] = { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 };
-      board.gameState.winner    = null;
-      board.gameState.gameEnded = false;
+      board.gameState.winner          = null;
+      board.gameState.gameEnded       = false;
+      board.gameState.pendingDiscards = {};
+      if (board.gameState.turnPhase === 'discard' || board.gameState.turnPhase === 'robber') {
+        board.gameState.turnPhase = 'build';
+      }
       board.lastRoll            = null;
       broadcast(socket.roomCode);
       break;
