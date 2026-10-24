@@ -2,15 +2,17 @@ window.Render = (() => {
   const SVG_NS   = 'http://www.w3.org/2000/svg';
   const HEX_SIZE = 50;
 
-  // Fill and stroke colors for each tile type
+  // Fill, lighter centre and rim colours for each tile type
   const TILE_COLORS = {
-    forest:    { fill: '#5fa830', stroke: '#3a6b18' },
-    pasture:   { fill: '#9bc94a', stroke: '#62872a' },
-    fields:    { fill: '#f0c040', stroke: '#a88200' },
-    hills:     { fill: '#d97a3a', stroke: '#924e1c' },
-    mountains: { fill: '#9a9a9a', stroke: '#555555' },
-    desert:    { fill: '#e8c98a', stroke: '#a0854a' },
+    forest:    { fill: '#2f8d3a', light: '#4fb34e', stroke: '#1f6427' },
+    pasture:   { fill: '#86c440', light: '#a9dc63', stroke: '#5c9426' },
+    fields:    { fill: '#efb02c', light: '#ffd05c', stroke: '#b98300' },
+    hills:     { fill: '#dd5e2c', light: '#f3844f', stroke: '#a1401b' },
+    mountains: { fill: '#9aa3ab', light: '#c2cad0', stroke: '#646d75' },
+    desert:    { fill: '#e2cd96', light: '#f1e2b6', stroke: '#b1975c' },
   };
+  const ROW_HEIGHT = 1.5 * HEX_SIZE;
+  const HEX_WIDTH  = Math.sqrt(3) * HEX_SIZE;
 
   // How many probability dots to show under each number token
   const DOT_COUNT = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
@@ -25,23 +27,35 @@ window.Render = (() => {
 
   // Compute the "points" attribute for a pointy-top hexagon centered at (cx, cy).
   // The 6 vertices sit at angles 30°, 90°, 150°, 210°, 270°, 330° from center.
-  function hexPoints(cx, cy) {
+  function hexPoints(cx, cy, size = HEX_SIZE) {
     const pts = [];
     for (let i = 0; i < 6; i++) {
       const rad = (Math.PI / 180) * (60 * i + 30);
-      pts.push(`${(cx + HEX_SIZE * Math.cos(rad)).toFixed(2)},${(cy + HEX_SIZE * Math.sin(rad)).toFixed(2)}`);
+      pts.push(`${(cx + size * Math.cos(rad)).toFixed(2)},${(cy + size * Math.sin(rad)).toFixed(2)}`);
     }
     return pts.join(' ');
+  }
+
+  // One radial gradient per tile type: lighter in the middle, darker at the rim.
+  function drawTileGradients(svg) {
+    const defs = el('defs', {});
+    for (const [type, c] of Object.entries(TILE_COLORS)) {
+      const grad = el('radialGradient', { id: `tile-${type}`, cx: '50%', cy: '45%', r: '60%' });
+      grad.appendChild(el('stop', { offset: '0%',   'stop-color': c.light }));
+      grad.appendChild(el('stop', { offset: '100%', 'stop-color': c.fill }));
+      defs.appendChild(grad);
+    }
+    svg.appendChild(defs);
   }
 
   // Draw a single hex tile polygon. Returns the element so click handlers can be attached.
   function drawTile(svg, pos, tileType, idx) {
     const c = TILE_COLORS[tileType];
     const poly = el('polygon', {
-      points:          hexPoints(pos.x, pos.y),
-      fill:            c.fill,
+      points:          hexPoints(pos.x, pos.y, HEX_SIZE - 2),
+      fill:            `url(#tile-${tileType})`,
       stroke:          c.stroke,
-      'stroke-width':  2.5,
+      'stroke-width':  3,
       'stroke-linejoin': 'round',
       class:           'hex-tile',
       'data-idx':      idx,
@@ -49,6 +63,45 @@ window.Render = (() => {
     });
     svg.appendChild(poly);
     return poly;
+  }
+
+  // Faint hex grid over the whole sea, lined up with the land tiles.
+  function drawSeaGrid(svg, board, width, height) {
+    const g  = el('g', { 'pointer-events': 'none' });
+    const p0 = board.positions[0];
+    const rowMin = Math.floor(-p0.y / ROW_HEIGHT) - 1;
+    const rowMax = Math.ceil((height - p0.y) / ROW_HEIGHT) + 1;
+    const colMin = Math.floor(-p0.x / (HEX_WIDTH / 2)) - 2;
+    const colMax = Math.ceil((width - p0.x) / (HEX_WIDTH / 2)) + 2;
+    for (let r = rowMin; r <= rowMax; r++) {
+      for (let c = colMin; c <= colMax; c++) {
+        if ((r + c) % 2 !== 0) continue;
+        g.appendChild(el('polygon', {
+          points: hexPoints(p0.x + c * HEX_WIDTH / 2, p0.y + r * ROW_HEIGHT),
+          fill: 'none', stroke: 'rgba(255, 255, 255, 0.07)', 'stroke-width': 1.5,
+        }));
+      }
+    }
+    svg.appendChild(g);
+  }
+
+  // Shallow-water glow and a sandy beach around every land tile. Overlapping
+  // hexes merge into one coastline.
+  function drawCoast(svg, board) {
+    const glow  = el('g', { 'pointer-events': 'none' });
+    const beach = el('g', { 'pointer-events': 'none' });
+    for (const pos of board.positions) {
+      glow.appendChild(el('polygon', {
+        points: hexPoints(pos.x, pos.y, HEX_SIZE + 17), fill: '#4f9fe0', stroke: '#4f9fe0', 'stroke-width': 6,
+        'stroke-linejoin': 'round',
+      }));
+      beach.appendChild(el('polygon', {
+        points: hexPoints(pos.x, pos.y, HEX_SIZE + 7), fill: '#ead6a0', stroke: '#ead6a0', 'stroke-width': 3,
+        'stroke-linejoin': 'round',
+      }));
+    }
+    svg.appendChild(glow);
+    svg.appendChild(beach);
   }
 
   const TILE_EMOJI = {
@@ -60,41 +113,40 @@ window.Render = (() => {
   function drawTileIcon(svgElement, pos, tileType) {
     const txt = el('text', {
       x:                  pos.x,
-      y:                  pos.y - 22,
+      y:                  pos.y - 25,
       'text-anchor':      'middle',
       'dominant-baseline': 'middle',
-      'font-size':        28,
+      'font-size':        24,
       'pointer-events':   'none',
     });
     txt.textContent = TILE_EMOJI[tileType] || '';
     svgElement.appendChild(txt);
   }
 
-  // Draw a Catan-style number token: cream circle + bold number + probability dots.
+  // Number token: rounded cream square with a bold number and probability dots.
   function drawNumberToken(svg, pos, number) {
     const cx  = pos.x;
-    const cy  = pos.y + 6;
+    const cy  = pos.y + 9;
     const red = number === 6 || number === 8;
-    const ink = red ? '#c0392b' : '#2c3e50';
+    const ink = red ? '#c62828' : '#1f3d1f';
 
-    // Cream backing circle
-    svg.appendChild(el('circle', {
-      cx, cy, r: 16,
-      fill:           '#f4ead5',
-      stroke:         '#00000030',
-      'stroke-width': 1,
+    svg.appendChild(el('rect', {
+      x: cx - 17, y: cy - 17, width: 34, height: 34, rx: 7,
+      fill:           '#f7f0dc',
+      stroke:         'rgba(0, 0, 0, 0.28)',
+      'stroke-width': 1.2,
       'pointer-events': 'none',
     }));
 
     // Number text
     const txt = el('text', {
       x:                   cx,
-      y:                   cy,
+      y:                   cy - 3,
       'text-anchor':       'middle',
       'dominant-baseline': 'central',
-      'font-size':         18,
-      'font-weight':       'bold',
-      'font-family':       'Arial, sans-serif',
+      'font-size':         21,
+      'font-weight':       '900',
+      'font-family':       'Nunito, Arial, sans-serif',
       fill:                ink,
       'pointer-events':    'none',
     });
@@ -103,9 +155,9 @@ window.Render = (() => {
 
     // Probability dots
     const count   = DOT_COUNT[number] || 0;
-    const dotR    = 1.6;
-    const spacing = 4;
-    const dotY    = cy + 9;
+    const dotR    = 1.7;
+    const spacing = 4.2;
+    const dotY    = cy + 10;
     const startX  = cx - ((count - 1) * spacing) / 2;
     for (let d = 0; d < count; d++) {
       svg.appendChild(el('circle', {
@@ -129,8 +181,8 @@ window.Render = (() => {
       cx,
       cy:            cy - 12,
       r:             7,
-      fill:          '#1a1a2e',
-      stroke:        '#777',
+      fill:          '#8c8c8c',
+      stroke:        '#4a4a4a',
       'stroke-width': 1.5,
       'pointer-events': 'none',
     }));
@@ -141,8 +193,8 @@ window.Render = (() => {
       cy:            cy,
       rx:            9,
       ry:            10,
-      fill:          '#1a1a2e',
-      stroke:        '#777',
+      fill:          '#8c8c8c',
+      stroke:        '#4a4a4a',
       'stroke-width': 1.5,
       'pointer-events': 'none',
     }));
@@ -156,17 +208,15 @@ window.Render = (() => {
   // produced by window.Board.generateBoard().
   function renderBoard(svgElement, board) {
     svgElement.innerHTML = '';
-    svgElement.setAttribute('viewBox', '0 0 800 800');
-
     const { positions, tiles, numbers, robber } = board;
+    const width  = board.view ? board.view.width  : 800;
+    const height = board.view ? board.view.height : 800;
+    svgElement.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
-    // 0. Ocean backdrop — behind all hex tiles
-    svgElement.appendChild(el('rect', {
-      x: 65, y: 90, width: 670, height: 620, rx: 30, ry: 30,
-      fill:           '#4a90d9',
-      stroke:         '#2e6fa8',
-      'stroke-width': 2.5,
-    }));
+    // 0. Sea grid, then the shallow water and beaches around the land
+    drawTileGradients(svgElement);
+    drawSeaGrid(svgElement, board, width, height);
+    drawCoast(svgElement, board);
 
     // 1. Draw all hex tile polygons first (bottom layer)
     for (let i = 0; i < positions.length; i++) {
@@ -402,88 +452,68 @@ window.Render = (() => {
       const vA = board.graph.vertices[vertexA];
       const vB = board.graph.vertices[vertexB];
 
-      // Dashed lines from icon to each anchor vertex
+      // Wooden docks from the two port corners out towards the ship
       for (const v of [vA, vB]) {
         g.appendChild(el('line', {
-          x1: iconX, y1: iconY, x2: v.x, y2: v.y,
-          stroke:              'rgba(255,255,255,0.5)',
-          'stroke-width':      1.2,
-          'stroke-dasharray':  '3,3',
+          x1: v.x, y1: v.y,
+          x2: v.x + (iconX - v.x) * 0.62, y2: v.y + (iconY - v.y) * 0.62,
+          stroke:             '#b5803f',
+          'stroke-width':     6,
+          'stroke-dasharray': '3,2',
         }));
       }
 
-      // Soft backing circle so the ship reads against the ocean
+      // Ship on a white sail-coloured disc
       g.appendChild(el('circle', {
-        cx: iconX, cy: iconY, r: 15,
-        fill: 'rgba(255, 255, 255, 0.15)',
+        cx: iconX, cy: iconY, r: 17,
+        fill: '#fbf7ec', stroke: '#c9b48a', 'stroke-width': 1.5,
       }));
-
-      // Ship emoji — larger for colonist-style port markers
       const ship = el('text', {
-        x: iconX, y: iconY,
+        x: iconX, y: iconY - 3,
         'text-anchor':       'middle',
         'dominant-baseline': 'middle',
-        'font-size':         22,
+        'font-size':         type === 'any' ? 16 : 14,
       });
-      ship.textContent = '⛵';
+      ship.textContent = type === 'any' ? '⛵' : PORT_RESOURCE_EMOJI[type];
       g.appendChild(ship);
 
-      // Dark pill badge below the ship showing rate (+ resource emoji for 2:1 ports)
-      const rateText = type === 'any' ? '3:1' : `${PORT_RESOURCE_EMOJI[type]} 2:1`;
-      const pillW    = type === 'any' ? 28 : 44;
-      const labelY   = iconY + 22;
-      g.appendChild(el('rect', {
-        x: iconX - pillW / 2, y: labelY - 8,
-        width: pillW, height: 15,
-        rx: 7, ry: 7,
-        fill: 'rgba(0, 0, 0, 0.75)',
-      }));
+      // Rate under the icon
       const label = el('text', {
-        x: iconX, y: labelY,
+        x: iconX, y: iconY + 10,
         'text-anchor':       'middle',
         'dominant-baseline': 'middle',
         'font-size':         9,
-        'font-weight':       'bold',
-        'font-family':       'Arial, sans-serif',
-        fill:                '#ffffff',
+        'font-weight':       '900',
+        'font-family':       'Nunito, Arial, sans-serif',
+        fill:                '#4a3b22',
       });
-      label.textContent = rateText;
+      label.textContent = type === 'any' ? '3:1' : '2:1';
       g.appendChild(label);
     }
 
     svgElement.appendChild(g);
   }
 
-  const DIE_PIPS = {
-    1: [[25, 25]],
-    2: [[13, 13], [37, 37]],
-    3: [[13, 13], [25, 25], [37, 37]],
-    4: [[13, 13], [37, 13], [13, 37], [37, 37]],
-    5: [[13, 13], [37, 13], [25, 25], [13, 37], [37, 37]],
-    6: [[13, 13], [37, 13], [13, 25], [37, 25], [13, 37], [37, 37]],
-  };
-
-  // Draws two dice in the top-right corner of the SVG. Replaces any previous dice.
-  function drawDice(svgElement, d1, d2) {
-    const existing = svgElement.querySelector('#dice-layer');
+  // Soft glowing circles on the corners/edges where the player can build right now.
+  // Drawn under the click targets so clicks still reach them.
+  function drawHighlights(svgElement, board, spots) {
+    const existing = svgElement.querySelector('#highlight-layer');
     if (existing) existing.remove();
+    if (!spots || (!spots.vertices.length && !spots.edges.length)) return;
 
-    const g = el('g', { id: 'dice-layer', 'pointer-events': 'none' });
-
-    function drawOneDie(x, y, value) {
-      g.appendChild(el('rect', {
-        x, y, width: 50, height: 50, rx: 8,
-        fill: 'white', stroke: '#333', 'stroke-width': 2,
-      }));
-      for (const [px, py] of (DIE_PIPS[value] || [])) {
-        g.appendChild(el('circle', { cx: x + px, cy: y + py, r: 3, fill: '#222' }));
-      }
+    const g = el('g', { id: 'highlight-layer', 'pointer-events': 'none' });
+    for (const vIdx of spots.vertices) {
+      const v = board.graph.vertices[vIdx];
+      g.appendChild(el('circle', { cx: v.x, cy: v.y, r: 11, class: 'build-spot' }));
     }
-
-    drawOneDie(660, 55, d1);  // left die
-    drawOneDie(720, 55, d2);  // right die, 10px gap
-    svgElement.appendChild(g);
+    for (const eIdx of spots.edges) {
+      const e = board.graph.edges[eIdx];
+      g.appendChild(el('circle', { cx: (e.x1 + e.x2) / 2, cy: (e.y1 + e.y2) / 2, r: 8, class: 'build-spot' }));
+    }
+    const handlers = svgElement.querySelector('#edge-handlers') || svgElement.querySelector('#vertex-handlers');
+    if (handlers) svgElement.insertBefore(g, handlers);
+    else          svgElement.appendChild(g);
   }
 
-  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, drawPorts, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid, drawDice };
+  return { renderBoard, attachClickHandlers, drawGraphDebug, drawPieces, drawPorts, attachVertexClickHandlers, attachEdgeClickHandlers, flashInvalid, drawHighlights };
 })();

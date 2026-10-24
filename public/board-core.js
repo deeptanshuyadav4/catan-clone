@@ -2,12 +2,10 @@
 // board-core.js — Pure game logic.
 // Works as a Node.js require() module (server) AND a browser <script> tag (client).
 
-const HEX_SIZE   = 50;
-const HEX_WIDTH  = Math.sqrt(3) * HEX_SIZE;
-const ROW_HEIGHT = 1.5 * HEX_SIZE;
-const ROW_COUNTS = [4, 5, 6, 7, 6, 5, 4];
-const CENTER_X   = 400;
-const CENTER_Y   = 400;
+const HEX_SIZE    = 50;
+const HEX_WIDTH   = Math.sqrt(3) * HEX_SIZE;
+const ROW_HEIGHT  = 1.5 * HEX_SIZE;
+const MAP_PADDING = 80; // sea around the land, leaves room for ports
 
 const TILE_RESOURCE = {
   forest: 'wood', hills: 'brick', fields: 'wheat', pasture: 'wool', mountains: 'ore', desert: null,
@@ -21,6 +19,115 @@ const BUILD_COSTS = {
   settlement: { wood: 1, brick: 1, wheat: 1, wool: 1 },
   city:       { wheat: 2, ore: 3 },
 };
+
+// Pieces each player owns. Upgrading to a city gives the settlement back.
+const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 };
+
+// ── Maps ─────────────────────────────────────────────────────────────────────
+// Each map is drawn as text: 'o' is a land tile, 'd' a desert, anything else is sea.
+// Tiles in a row are two characters apart, and each row is shifted one character
+// from the row above, like bricks in a wall.
+// Optional: tilePool / numberPool (exact pools), deserts (total count), ports (count).
+const MAPS = {
+  classic: {
+    name: 'Classic', size: 'Small',
+    rows: [
+      '  o o o',
+      ' o o o o',
+      'o o o o o',
+      ' o o o o',
+      '  o o o',
+    ],
+    ports: 9,
+  },
+  grand: {
+    name: 'Grand Isle', size: 'Medium',
+    rows: [
+      '   o o o o',
+      '  o o o o o',
+      ' o o o o o o',
+      'o o o o o o o',
+      ' o o o o o o',
+      '  o o o o o',
+      '   o o o o',
+    ],
+    tilePool:   { forest: 8, pasture: 8, fields: 7, hills: 6, mountains: 6, desert: 2 },
+    numberPool: [2, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 8, 8, 8, 8,
+                 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 12],
+    ports: 9,
+  },
+  twin: {
+    name: 'Twin Isles', size: 'Medium',
+    rows: [
+      '  o o o       o o o',
+      ' o o o o     o o o o',
+      'o o o o o   o o o o o',
+      ' o o o o     o o o o',
+      '  o o o       o o o',
+    ],
+    ports: 12,
+  },
+  lakeland: {
+    name: 'Lakeland', size: 'Big',
+    rows: [
+      '     o o o o o o',
+      '    o o o o o o o',
+      '   o o o     o o o',
+      '  o o o o o o o o o',
+      ' o o o o o   o o o o',
+      'o o o o o     o o o o',
+      ' o o o o o o o o o o',
+      '  o o o o o o o o o',
+      '   o o o     o o o',
+      '    o o o o o o o',
+      '     o o o o o o',
+    ],
+    ports: 16,
+  },
+  world: {
+    name: 'World', size: 'Huge',
+    rows: [
+      '  o o o o o o   o o     o o o     o o o o o o o',
+      ' o o o o o o o   o     o o o o   o o o o d o o o',
+      '  o o o o o o         o o o     o o o o o o o o   o',
+      '     o o o o                     o o o o o o o   o',
+      '      o o           o o d o         o o o',
+      '                     o o o o',
+      '        o o o       o o o o',
+      '         o o o o       o o             o o o',
+      '        o o o         o             o o d o',
+      '           o o                         o o',
+      '          o',
+    ],
+    deserts: 4,
+    ports: 22,
+  },
+  usa: {
+    name: 'USA', size: 'Huge',
+    rows: [
+      'o o o o o o o o o               o o',
+      ' o o o o o o o o o o   o o   o o o o',
+      'o o o o o o o o o o o   o   o o o o',
+      ' o o o o o o o o o o o   o o o o o o',
+      'o o o o o o o o o o o o o o o o o',
+      ' o o o d o o o o o o o o o o o o o',
+      'o o d o o o o o o o o o o o o o',
+      '   o o d o o o o o o o o o o o o',
+      '    o o d o o o o o o o o o o',
+      '             o o o o o   o o o',
+      '              o o o         o',
+      '                 o           o',
+    ],
+    deserts: 5,
+    ports: 18,
+  },
+};
+const DEFAULT_MAP = 'grand';
+
+// Share of each resource on maps without an exact pool (the standard board is 4:4:4:3:3).
+const TILE_SHARES   = { forest: 4, pasture: 4, fields: 4, hills: 3, mountains: 3 };
+// The standard 18 number tokens; bigger maps repeat the set.
+const NUMBER_SET    = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 
 function mulberry32(seed) {
   return function () {
@@ -40,96 +147,183 @@ function shuffle(arr, rng) {
   return arr;
 }
 
-function generatePorts(graph, rng) {
+// Ports go on coastal edges (edges with land on one side only), spread evenly around the
+// coast, never two on the same corner. The ship sits out at sea, away from its tile.
+function generatePorts(board, rng, count) {
+  const { graph, positions } = board;
   const coastal = graph.edges
     .map((e, i) => ({ ...e, idx: i }))
     .filter(e => e.tiles.length === 1);
 
-  coastal.sort((a, b) => {
-    const ax = Math.atan2((a.y1 + a.y2) / 2 - CENTER_Y, (a.x1 + a.x2) / 2 - CENTER_X);
-    const bx = Math.atan2((b.y1 + b.y2) / 2 - CENTER_Y, (b.x1 + b.x2) / 2 - CENTER_X);
-    return ax - bx;
-  });
+  const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+  const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+  const angle = e => Math.atan2((e.y1 + e.y2) / 2 - cy, (e.x1 + e.x2) / 2 - cx);
+  coastal.sort((a, b) => angle(a) - angle(b));
 
-  const n = coastal.length;
-  const chosen = [];
-  for (let i = 0; i < 9; i++) chosen.push(coastal[Math.round(i * n / 9) % n]);
-
-  const portTypes = shuffle(
-    ['any', 'any', 'any', 'any', 'wood', 'brick', 'wheat', 'wool', 'ore'],
-    rng
-  );
-
-  return chosen.map((edge, i) => {
+  // Where the ship for a port on this edge would sit: out at sea, away from its tile
+  const iconFor = edge => {
     const mx   = (edge.x1 + edge.x2) / 2;
     const my   = (edge.y1 + edge.y2) / 2;
-    const dx   = mx - CENTER_X;
-    const dy   = my - CENTER_Y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const tile = positions[edge.tiles[0]];
+    const dist = Math.hypot(mx - tile.x, my - tile.y);
+    return { x: Math.round(mx + (mx - tile.x) / dist * 34), y: Math.round(my + (my - tile.y) / dist * 34) };
+  };
+
+  if (count === undefined) count = Math.max(4, Math.round(coastal.length / 4.67));
+  const n      = coastal.length;
+  const used   = new Set();
+  const chosen = [];
+  const icons  = [];
+  // A port fits if it shares no corner with another and its ship isn't crowding another ship
+  const fits = e => {
+    if (used.has(e.vertexA) || used.has(e.vertexB)) return false;
+    const icon = iconFor(e);
+    return icons.every(o => Math.hypot(o.x - icon.x, o.y - icon.y) > 70);
+  };
+  for (let i = 0; i < count && chosen.length < n; i++) {
+    let j = Math.round(i * n / count) % n;
+    let found = false;
+    for (let tries = 0; tries < n; tries++, j = (j + 1) % n) {
+      if (fits(coastal[j])) { found = true; break; }
+    }
+    if (!found) break;
+    const edge = coastal[j];
+    used.add(edge.vertexA);
+    used.add(edge.vertexB);
+    icons.push(iconFor(edge));
+    chosen.push(edge);
+  }
+
+  // Same mix as the standard board: 4 of every 9 ports are 3:1, the rest 2:1 for one resource
+  const anyCount = Math.round(chosen.length * 4 / 9);
+  const types = Array(anyCount).fill('any');
+  for (let i = 0; types.length < chosen.length; i++) types.push(['wood', 'brick', 'wheat', 'wool', 'ore'][i % 5]);
+  const portTypes = shuffle(types, rng);
+
+  return chosen.map((edge, i) => {
     const type = portTypes[i];
+    const icon = icons[i];
     return {
       edgeIdx: edge.idx,
       type,
       rate:    type === 'any' ? 3 : 2,
-      iconX:   Math.round(mx + (dx / dist) * 26),
-      iconY:   Math.round(my + (dy / dist) * 26),
+      iconX:   icon.x,
+      iconY:   icon.y,
       vertexA: edge.vertexA,
       vertexB: edge.vertexB,
     };
   });
 }
 
-function generatePositions() {
-  const positions = [];
-  for (let row = 0; row < ROW_COUNTS.length; row++) {
-    const count = ROW_COUNTS[row];
-    const y = CENTER_Y + (row - 3) * ROW_HEIGHT;
-    for (let col = 0; col < count; col++) {
-      const x = CENTER_X + (col - (count - 1) / 2) * HEX_WIDTH;
-      positions.push({ x, y, row, col });
+// Turns a map's text rows into tile centre positions plus the size of the whole picture.
+function layoutMap(rows) {
+  const cells = [];
+  rows.forEach((line, row) => {
+    for (let col = 0; col < line.length; col++) {
+      if (line[col] === 'o' || line[col] === 'd') cells.push({ row, col, desert: line[col] === 'd' });
     }
-  }
-  return positions;
+  });
+  const minCol = Math.min(...cells.map(c => c.col));
+  const maxCol = Math.max(...cells.map(c => c.col));
+  const minRow = Math.min(...cells.map(c => c.row));
+  const maxRow = Math.max(...cells.map(c => c.row));
+
+  const positions = cells.map(c => ({
+    x: MAP_PADDING + HEX_WIDTH / 2 + (c.col - minCol) * HEX_WIDTH / 2,
+    y: MAP_PADDING + HEX_SIZE + (c.row - minRow) * ROW_HEIGHT,
+  }));
+  return {
+    positions,
+    fixed:  cells.map(c => (c.desert ? 'desert' : null)),
+    width:  2 * MAP_PADDING + HEX_WIDTH + (maxCol - minCol) * HEX_WIDTH / 2,
+    height: 2 * MAP_PADDING + 2 * HEX_SIZE + (maxRow - minRow) * ROW_HEIGHT,
+  };
 }
 
-function generateBoard(seed) {
+// Tiles still to be shuffled onto the map (fixed deserts are already placed).
+function buildTilePool(map, landCount, fixedDeserts) {
+  let counts;
+  if (map.tilePool) {
+    counts = { ...map.tilePool };
+  } else {
+    const deserts = map.deserts !== undefined ? map.deserts : Math.max(1, Math.round(landCount / 19));
+    const randomDeserts = Math.max(0, deserts - fixedDeserts);
+    const rest  = landCount - fixedDeserts - randomDeserts;
+    const total = Object.values(TILE_SHARES).reduce((s, n) => s + n, 0);
+    counts = {};
+    const remainders = [];
+    for (const [type, share] of Object.entries(TILE_SHARES)) {
+      counts[type] = Math.floor(rest * share / total);
+      remainders.push([type, rest * share / total - counts[type]]);
+    }
+    let missing = rest - Object.values(counts).reduce((s, n) => s + n, 0);
+    remainders.sort((a, b) => b[1] - a[1]);
+    for (let i = 0; missing > 0; i++, missing--) counts[remainders[i % remainders.length][0]]++;
+    counts.desert = randomDeserts;
+  }
+  const pool = [];
+  for (const type of ['forest', 'pasture', 'fields', 'hills', 'mountains', 'desert']) {
+    for (let i = 0; i < (counts[type] || 0); i++) pool.push(type);
+  }
+  return pool;
+}
+
+function buildNumberPool(map, producing, rng) {
+  if (map.numberPool) return [...map.numberPool];
+  const pool = [];
+  while (pool.length + NUMBER_SET.length <= producing) pool.push(...NUMBER_SET);
+  pool.push(...shuffle([...NUMBER_SET], rng).slice(0, producing - pool.length));
+  return pool;
+}
+
+// Moves 6s and 8s apart: while two touch, swap one with a number that has no red neighbours.
+function spreadRedNumbers(positions, numbers, rng) {
+  const isRed = n => n === 6 || n === 8;
+  const tiles = Object.keys(numbers).map(Number);
+  const near  = {};
+  for (const t of tiles) near[t] = getNeighbors(t, positions).filter(n => numbers[n] !== undefined);
+
+  for (let pass = 0; pass < 1000; pass++) {
+    const bad = tiles.find(t => isRed(numbers[t]) && near[t].some(n => isRed(numbers[n])));
+    if (bad === undefined) return true;
+    const options = tiles.filter(t =>
+      !isRed(numbers[t]) && !near[t].some(n => n !== bad && isRed(numbers[n])));
+    if (options.length === 0) return false;
+    const swap = options[Math.floor(rng() * options.length)];
+    [numbers[bad], numbers[swap]] = [numbers[swap], numbers[bad]];
+  }
+  return false;
+}
+
+function generateBoard(seed, mapId, balanced) {
   if (seed === undefined) seed = Math.floor(Math.random() * 0xFFFFFFFF);
+  if (!MAPS[mapId]) mapId = DEFAULT_MAP;
+  const map = MAPS[mapId];
   const rng = mulberry32(seed);
 
-  const positions = generatePositions();
+  const { positions, fixed, width, height } = layoutMap(map.rows);
+  const fixedDeserts = fixed.filter(Boolean).length;
+  const pool  = shuffle(buildTilePool(map, positions.length, fixedDeserts), rng);
+  const tiles = [];
+  let next = 0;
+  for (let i = 0; i < positions.length; i++) tiles.push(fixed[i] || pool[next++]);
 
-  const tilePool = [
-    ...Array(8).fill('forest'),
-    ...Array(8).fill('pasture'),
-    ...Array(7).fill('fields'),
-    ...Array(6).fill('hills'),
-    ...Array(6).fill('mountains'),
-    ...Array(2).fill('desert'),
-  ];
-  const tiles = shuffle([...tilePool], rng);
-
-  const numberPool = [
-    2,
-    3, 3, 3,
-    4, 4, 4, 4, 4,
-    5, 5, 5, 5,
-    6, 6, 6, 6,
-    8, 8, 8, 8,
-    9, 9, 9, 9, 9,
-    10, 10, 10, 10, 10,
-    11, 11, 11,
-    12,
-  ];
-  const shuffledNumbers = shuffle([...numberPool], rng);
+  const producing       = tiles.filter(t => t !== 'desert').length;
+  const shuffledNumbers = shuffle(buildNumberPool(map, producing, rng), rng);
 
   const numbers = {};
   let numIdx = 0;
   for (let i = 0; i < tiles.length; i++) {
     if (tiles[i] !== 'desert') numbers[i] = shuffledNumbers[numIdx++];
   }
+  if (balanced) spreadRedNumbers(positions, numbers, rng);
 
   const robber = tiles.indexOf('desert');
-  return { positions, tiles, numbers, robber, seed };
+  return {
+    mapId, positions, tiles, numbers, robber, seed,
+    view:     { width, height },
+    bankSize: map.bank || Math.max(19, positions.length),
+  };
 }
 
 function getNeighbors(idx, positions) {
@@ -205,10 +399,10 @@ function computeGraph(positions) {
 }
 
 const _generateBoard = generateBoard;
-function generateBoardWithGraph(seed) {
-  const board  = _generateBoard(seed);
+function generateBoardWithGraph(seed, mapId, balanced) {
+  const board  = _generateBoard(seed, mapId, balanced);
   board.graph  = computeGraph(board.positions);
-  board.ports  = generatePorts(board.graph, mulberry32(board.seed ^ 0x9E3779B9));
+  board.ports  = generatePorts(board, mulberry32(board.seed ^ 0x9E3779B9), MAPS[board.mapId].ports);
   board.pieces = { settlements: {}, cities: {}, roads: {} };
   board.players = {
     red:    { wood: 0, brick: 0, wheat: 0, wool: 0, ore: 0 },
@@ -229,6 +423,8 @@ function generateBoardWithGraph(seed) {
     pendingDiscards:      {},
     winner:               null,
     gameEnded:            false,
+    turnStartedAt:        Date.now(),
+    stats:                { startedAt: Date.now(), endedAt: null, turns: 0, rolls: {}, gained: {} },
   };
   board.lastRoll = null;
   return board;
@@ -358,10 +554,23 @@ function discardResources(board, playerId, resources) {
   return { valid: true, reason: '' };
 }
 
+// Cards of one resource still in the bank: the bank's supply minus what players hold.
+function bankCount(board, resource) {
+  const held = Object.values(board.players).reduce((sum, res) => sum + (res[resource] || 0), 0);
+  return (board.bankSize || 19) - held;
+}
+
+function recordGain(board, playerId, resource, amount) {
+  const stats = board.gameState.stats;
+  if (!stats) return;
+  const mine = stats.gained[playerId] || (stats.gained[playerId] = {});
+  mine[resource] = (mine[resource] || 0) + amount;
+}
+
+// Returns log lines describing who got what.
 function distributeResources(board, rolledNumber) {
   if (rolledNumber === 7) {
-    const discards = computeDiscards(board);
-    return { type: 'robber', log: 'Rolled 7 — move the robber', discards };
+    return { type: 'robber', discards: computeDiscards(board), log: [] };
   }
 
   const producingTiles = new Set();
@@ -369,7 +578,8 @@ function distributeResources(board, rolledNumber) {
     if (board.numbers[idx] === rolledNumber && idx !== board.robber) producingTiles.add(idx);
   }
 
-  const distribution = {};
+  // Work out what everyone is owed first, so the bank can be checked per resource
+  const owed = {};
   board.graph.vertices.forEach((vertex, vIdx) => {
     if (!vertex.tiles.some(t => producingTiles.has(t))) return;
     const playerId = board.pieces.settlements[vIdx] || board.pieces.cities[vIdx] || null;
@@ -379,22 +589,39 @@ function distributeResources(board, rolledNumber) {
       if (!producingTiles.has(tileIdx)) return;
       const resource = TILE_RESOURCE[board.tiles[tileIdx]];
       if (!resource) return;
-      if (!distribution[playerId]) distribution[playerId] = {};
-      distribution[playerId][resource] = (distribution[playerId][resource] || 0) + amount;
-      board.players[playerId][resource] += amount;
+      if (!owed[resource]) owed[resource] = {};
+      owed[resource][playerId] = (owed[resource][playerId] || 0) + amount;
     });
   });
 
-  const playerParts = Object.entries(distribution).map(([pid, res]) => {
-    const resList = Object.entries(res).map(([r, a]) => `${a} ${r}`).join(', ');
-    return `${pid} got ${resList}`;
-  });
+  // If the bank can't pay everyone a resource, nobody gets it,
+  // unless only one player is owed it: they take what's left.
+  const distribution = {};
+  const shortages    = [];
+  for (const resource of RESOURCES) {
+    let pay = owed[resource];
+    if (!pay) continue;
+    const total = Object.values(pay).reduce((s, n) => s + n, 0);
+    const left  = bankCount(board, resource);
+    if (total > left) {
+      const owners = Object.keys(pay);
+      if (owners.length === 1 && left > 0) pay = { [owners[0]]: left };
+      else { shortages.push(resource); continue; }
+    }
+    for (const [playerId, amount] of Object.entries(pay)) {
+      board.players[playerId][resource] += amount;
+      recordGain(board, playerId, resource, amount);
+      if (!distribution[playerId]) distribution[playerId] = {};
+      distribution[playerId][resource] = amount;
+    }
+  }
 
-  const log = playerParts.length > 0
-    ? `Rolled ${rolledNumber} — ${playerParts.join(' · ')}`
-    : `Rolled ${rolledNumber} — nobody collected anything`;
+  const log = Object.entries(distribution).map(([pid, res]) =>
+    `${pid} got ${Object.entries(res).map(([r, a]) => `${a} ${r}`).join(', ')}`);
+  for (const r of shortages) log.push(`The bank doesn't have enough ${r}`);
+  if (log.length === 0) log.push('Nobody got anything');
 
-  return { type: 'distribute', rolledNumber, distribution, log };
+  return { type: 'distribute', rolledNumber, distribution, shortages, log };
 }
 
 function getCurrentPlayer(board) {
@@ -407,8 +634,10 @@ function getCurrentPlayer(board) {
 function endTurn(board) {
   const gs = board.gameState;
   gs.currentPlayerIndex = (gs.currentPlayerIndex + 1) % gs.playerOrder.length;
-  gs.diceRolled = false;
-  gs.turnPhase  = 'roll';
+  gs.diceRolled    = false;
+  gs.turnPhase     = 'roll';
+  gs.turnStartedAt = Date.now();
+  if (gs.stats) gs.stats.turns++;
 }
 
 function advanceOpening(board) {
@@ -418,6 +647,7 @@ function advanceOpening(board) {
   } else {
     gs.openingStep = 'settlement';
     gs.openingTurn++;
+    gs.turnStartedAt = Date.now();
     if (gs.openingTurn >= gs.openingOrder.length) {
       gs.phase              = 'main';
       gs.currentPlayerIndex = 0;
@@ -429,8 +659,44 @@ function advanceOpening(board) {
 function giveStartingResources(board, vertexIdx, playerId) {
   board.graph.vertices[vertexIdx].tiles.forEach(tileIdx => {
     const resource = TILE_RESOURCE[board.tiles[tileIdx]];
-    if (resource) board.players[playerId][resource] += 1;
+    if (!resource || bankCount(board, resource) < 1) return;
+    board.players[playerId][resource] += 1;
+    recordGain(board, playerId, resource, 1);
   });
+}
+
+function piecesLeft(board, playerId, type) {
+  const placed = { road: board.pieces.roads, settlement: board.pieces.settlements, city: board.pieces.cities }[type];
+  return PIECE_LIMITS[type] - Object.values(placed).filter(p => p === playerId).length;
+}
+
+// Length of the player's longest continuous road. A road can't continue
+// through a corner where another player has built.
+function longestRoad(board, playerId) {
+  const { roads, settlements, cities } = board.pieces;
+  const { edges, vertexEdges } = board.graph;
+  const blocked = v => {
+    const owner = settlements[v] || cities[v];
+    return owner && owner !== playerId;
+  };
+  let best = 0;
+  function walk(v, used) {
+    best = Math.max(best, used.size);
+    if (blocked(v)) return;
+    for (const e of vertexEdges[v] || []) {
+      if (roads[e] !== playerId || used.has(e)) continue;
+      used.add(e);
+      walk(edges[e].vertexA === v ? edges[e].vertexB : edges[e].vertexA, used);
+      used.delete(e);
+    }
+  }
+  for (const [eIdx, owner] of Object.entries(roads)) {
+    if (owner !== playerId) continue;
+    const e = edges[eIdx];
+    walk(e.vertexA, new Set([Number(eIdx)]));
+    walk(e.vertexB, new Set([Number(eIdx)]));
+  }
+  return best;
 }
 
 function canAfford(board, playerId, buildingType) {
@@ -485,6 +751,7 @@ function tradeWithBank(board, playerId, giveResource, takeResource) {
   const rate = getBestTradeRate(board, playerId, giveResource);
   const res  = board.players[playerId];
   if ((res[giveResource] || 0) < rate) return { valid: false, reason: `need ${rate} ${giveResource} to trade` };
+  if (bankCount(board, takeResource) < 1) return { valid: false, reason: `the bank has no ${takeResource} left` };
   res[giveResource] -= rate;
   res[takeResource]  = (res[takeResource] || 0) + 1;
   return { valid: true, rate, reason: '' };
@@ -497,6 +764,7 @@ function checkWinner(board) {
     if (calculateVP(board, playerId) >= target) {
       board.gameState.winner    = playerId;
       board.gameState.gameEnded = true;
+      if (board.gameState.stats) board.gameState.stats.endedAt = Date.now();
       return playerId;
     }
   }
@@ -507,9 +775,15 @@ const BoardCore = {
   generateBoard: generateBoardWithGraph,
   getNeighbors,
   computeGraph,
+  MAPS,
+  DEFAULT_MAP,
   TILE_RESOURCE,
   BUILD_COSTS,
+  PIECE_LIMITS,
   RESOURCES,
+  bankCount,
+  piecesLeft,
+  longestRoad,
   canPlaceSettlement,
   canPlaceRoad,
   canUpgradeToCity,

@@ -65,7 +65,13 @@ function playersPayload(room) {
 function broadcast(roomCode) {
   const room = rooms[roomCode];
   if (!room || !room.board) return;
-  io.to(roomCode).emit('state', { board: room.board, rollLog: room.rollLog });
+  io.to(roomCode).emit('state', { board: room.board, rollLog: room.rollLog, serverTime: Date.now() });
+}
+
+// Newest first; '---' marks the end of a turn.
+function addLog(room, text) {
+  room.rollLog.unshift(text);
+  if (room.rollLog.length > 100) room.rollLog.length = 100;
 }
 
 function broadcastPlayersUpdate(roomCode) {
@@ -92,27 +98,8 @@ function cancelCleanup(roomCode) {
   room.cleanupTimer = null;
 }
 
-function isBalanced(b) {
-  for (let i = 0; i < b.tiles.length; i++) {
-    if (b.numbers[i] !== 6 && b.numbers[i] !== 8) continue;
-    for (const n of Board.getNeighbors(i, b.positions)) {
-      if (b.numbers[n] === 6 || b.numbers[n] === 8) return false;
-    }
-  }
-  return true;
-}
-
 function freshBoard(room, balanced) {
-  let b;
-  if (balanced) {
-    b = Board.generateBoard();
-    for (let attempt = 0; attempt < 199; attempt++) {
-      if (isBalanced(b)) break;
-      b = Board.generateBoard();
-    }
-  } else {
-    b = Board.generateBoard();
-  }
+  const b      = Board.generateBoard(undefined, room.mapId, balanced);
   const colors = connectedColors(room);
   b.gameState.playerOrder        = colors;
   b.gameState.openingOrder       = buildOpeningOrder(colors);
@@ -134,9 +121,15 @@ function handleAction(socket, action) {
   if (!room)         return actionError(socket, 'not in a room');
   if (!room.started) return actionError(socket, 'game has not started');
 
-  const { rollLog } = room;
   let { board }     = room;
   const myColor     = socket.playerColor;
+  const log         = text => addLog(room, text);
+  const logIfWon    = () => {
+    if (Board.checkWinner(board) && !room.winLogged) {
+      room.winLogged = true;
+      log(`${board.gameState.winner} won the game!`);
+    }
+  };
 
   if (TURN_ACTIONS.has(action.type)) {
     const currentPlayer = Board.getCurrentPlayer(board);
@@ -152,7 +145,9 @@ function handleAction(socket, action) {
       const result = Board.distributeResources(board, roll.total);
       board.gameState.diceRolled = true;
       board.lastRoll = roll;
-      rollLog.unshift(result.log);
+      const stats = board.gameState.stats;
+      if (stats) stats.rolls[roll.total] = (stats.rolls[roll.total] || 0) + 1;
+      log(`${myColor} rolled ${roll.d1}+${roll.d2}`);
 
       if (roll.total === 7) {
         const discards = result.discards || {};
@@ -160,15 +155,15 @@ function handleAction(socket, action) {
         board.gameState.pendingDiscards = discards;
         board.gameState.turnPhase       = colors.length > 0 ? 'discard' : 'robber';
         for (const color of colors) {
-          rollLog.unshift(`${color} must discard ${discards[color]} cards`);
+          log(`${color} must discard ${discards[color]} cards`);
           const sid = socketIdForColor(room, color);
           if (sid) io.to(sid).emit('must_discard', { count: discards[color] });
         }
       } else {
+        result.log.forEach(log);
         board.gameState.turnPhase = 'build';
       }
 
-      if (rollLog.length > 50) rollLog.length = 50;
       broadcast(socket.roomCode);
       break;
     }
@@ -186,6 +181,7 @@ function handleAction(socket, action) {
 
       const place = Board.canPlaceSettlement(board, vertex, myColor);
       if (!place.valid) return actionError(socket, place.reason);
+      if (Board.piecesLeft(board, myColor, 'settlement') < 1) return actionError(socket, 'no settlements left');
 
       if (!isOpening) {
         const afford = Board.canAfford(board, myColor, 'settlement');
@@ -194,15 +190,23 @@ function handleAction(socket, action) {
 
       board.pieces.settlements[vertex] = myColor;
       Board.payCost(board, myColor, 'settlement');
+      log(`${myColor} placed a Settlement`);
 
       if (isOpening) {
         board.gameState.lastSettlementVertex = vertex;
         const half = board.gameState.openingOrder.length / 2;
-        if (board.gameState.openingTurn >= half) Board.giveStartingResources(board, vertex, myColor);
+        if (board.gameState.openingTurn >= half) {
+          const before = { ...board.players[myColor] };
+          Board.giveStartingResources(board, vertex, myColor);
+          const got = Board.RESOURCES
+            .filter(r => board.players[myColor][r] > before[r])
+            .map(r => `${board.players[myColor][r] - before[r]} ${r}`);
+          if (got.length) log(`${myColor} got ${got.join(', ')}`);
+        }
         Board.advanceOpening(board);
       }
 
-      Board.checkWinner(board);
+      logIfWon();
       broadcast(socket.roomCode);
       break;
     }
@@ -217,6 +221,7 @@ function handleAction(socket, action) {
 
       const place = Board.canUpgradeToCity(board, vertex, myColor);
       if (!place.valid) return actionError(socket, place.reason);
+      if (Board.piecesLeft(board, myColor, 'city') < 1) return actionError(socket, 'no cities left');
 
       const afford = Board.canAfford(board, myColor, 'city');
       if (!afford.valid) return actionError(socket, afford.reason);
@@ -224,8 +229,9 @@ function handleAction(socket, action) {
       delete board.pieces.settlements[vertex];
       board.pieces.cities[vertex] = myColor;
       Board.payCost(board, myColor, 'city');
+      log(`${myColor} built a City`);
 
-      Board.checkWinner(board);
+      logIfWon();
       broadcast(socket.roomCode);
       break;
     }
@@ -243,6 +249,7 @@ function handleAction(socket, action) {
 
       const place = Board.canPlaceRoad(board, edge, myColor);
       if (!place.valid) return actionError(socket, place.reason);
+      if (Board.piecesLeft(board, myColor, 'road') < 1) return actionError(socket, 'no roads left');
 
       if (!isOpening) {
         const afford = Board.canAfford(board, myColor, 'road');
@@ -251,8 +258,12 @@ function handleAction(socket, action) {
 
       board.pieces.roads[edge] = myColor;
       Board.payCost(board, myColor, 'road');
+      log(`${myColor} placed a Road`);
 
-      if (isOpening) Board.advanceOpening(board);
+      if (isOpening) {
+        Board.advanceOpening(board);
+        if (board.gameState.openingStep === 'settlement') log('---');
+      }
       broadcast(socket.roomCode);
       break;
     }
@@ -262,6 +273,7 @@ function handleAction(socket, action) {
       if (board.gameState.turnPhase !== 'build') return actionError(socket, 'must roll dice before ending turn');
       board.lastRoll = null;
       Board.endTurn(board);
+      log('---');
       broadcast(socket.roomCode);
       break;
     }
@@ -275,8 +287,7 @@ function handleAction(socket, action) {
       const result = Board.tradeWithBank(board, myColor, giveResource, getResource);
       if (!result.valid) return actionError(socket, result.reason);
 
-      rollLog.unshift(`${myColor} traded ${result.rate} ${giveResource} → 1 ${getResource}`);
-      if (rollLog.length > 50) rollLog.pop();
+      log(`${myColor} gave bank ${result.rate} ${giveResource} and took 1 ${getResource}`);
       broadcast(socket.roomCode);
       break;
     }
@@ -291,10 +302,9 @@ function handleAction(socket, action) {
       const result = Board.moveRobber(board, tileIndex, myColor, victim);
       if (!result.valid) return actionError(socket, result.reason);
 
-      rollLog.unshift(result.victim
+      log(result.victim
         ? `${myColor} moved the robber and stole a card from ${result.victim}`
         : `${myColor} moved the robber`);
-      if (rollLog.length > 50) rollLog.length = 50;
       broadcast(socket.roomCode);
       break;
     }
@@ -308,16 +318,16 @@ function handleAction(socket, action) {
       if (!result.valid) return actionError(socket, result.reason);
 
       const total = Object.values(resources).reduce((s, n) => s + n, 0);
-      rollLog.unshift(`${myColor} discarded ${total} cards`);
-      if (rollLog.length > 50) rollLog.length = 50;
+      log(`${myColor} discarded ${total} cards`);
       broadcast(socket.roomCode);
       break;
     }
 
     case 'regenerate': {
       if (myColor !== room.hostColor) return actionError(socket, 'only the host can regenerate the board');
-      room.board   = freshBoard(room, action.balanced);
-      room.rollLog = [];
+      room.board     = freshBoard(room, action.balanced);
+      room.rollLog   = [];
+      room.winLogged = false;
       broadcast(socket.roomCode);
       break;
     }
@@ -331,6 +341,8 @@ function handleAction(socket, action) {
       board.gameState.winner          = null;
       board.gameState.gameEnded       = false;
       board.gameState.pendingDiscards = {};
+      board.gameState.stats           = { startedAt: Date.now(), endedAt: null, turns: 0, rolls: {}, gained: {} };
+      room.winLogged                  = false;
       if (board.gameState.turnPhase === 'discard' || board.gameState.turnPhase === 'robber') {
         board.gameState.turnPhase = 'build';
       }
@@ -406,11 +418,24 @@ io.on('connection', (socket) => {
 
     const t = parseInt(payload.winTarget, 10);
     room.winTarget = [3,5,8,10].includes(t) ? t : 10;
+    room.mapId     = Board.MAPS[payload.mapId] ? payload.mapId : Board.DEFAULT_MAP;
 
-    room.board   = freshBoard(room, false);
-    room.rollLog = [];
-    room.started = true;
+    room.board     = freshBoard(room, false);
+    room.rollLog   = [];
+    room.started   = true;
+    room.winLogged = false;
     broadcast(socket.roomCode);
+  });
+
+  socket.on('chat', (payload = {}) => {
+    const room = getRoom(socket);
+    if (!room || !socket.playerColor) return;
+    const text = String(payload.text || '').trim().slice(0, 200);
+    if (!text) return;
+    const now = Date.now();
+    if (socket.lastChatAt && now - socket.lastChatAt < 400) return; // simple flood guard
+    socket.lastChatAt = now;
+    io.to(socket.roomCode).emit('chat', { color: socket.playerColor, text });
   });
 
   socket.on('action', (action) => {
