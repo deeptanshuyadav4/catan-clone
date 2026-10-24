@@ -2,6 +2,10 @@
 
 Multiplayer Catan in the browser. Make a room, send the 4-letter code to your friends, and play. No accounts needed.
 
+**Play it here: https://catan-clone-production.up.railway.app**
+
+It runs on a free server that sleeps when nobody is playing, so the first load can take a few seconds.
+
 I started this because the bigger maps on colonist.io are behind a paywall and I wanted to play them with my friends. It's still a work in progress.
 
 ## What works
@@ -21,12 +25,11 @@ I started this because the bigger maps on colonist.io are behind a paywall and I
 - Longest road and largest army
 - Bigger maps, like the USA and world maps on colonist.io
 - Bots for empty seats
-- A live link so anyone can play without installing anything
 - Rejoining after a refresh (right now refreshing the page loses your seat)
 
 ## Running it yourself
 
-You need Node.js 18 or newer.
+You need Node.js 22 or newer.
 
 ```bash
 git clone https://github.com/deeptanshuyadav4/catan-clone.git
