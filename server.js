@@ -1,17 +1,35 @@
 'use strict';
 const express = require('express');
 const http    = require('http');
+const crypto  = require('crypto');
 const { Server } = require('socket.io');
 const Board   = require('./public/board-core.js');
+const { setupAdmin } = require('./admin');
 
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
 const PORT   = process.env.PORT || 3000;
+app.set('trust proxy', 1); // behind Railway's proxy: real visitor IPs and https
 
 const COLORS     = ['red', 'blue', 'white', 'orange'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O
 const rooms      = {};
+
+// Server-wide numbers and switches for the admin page (reset on restart)
+const info = {
+  startedAt:    Date.now(),
+  peakOnline:   0,
+  counters:     { roomsCreated: 0, gamesStarted: 0, gamesFinished: 0 },
+  maintenance:  false,
+  announcement: null,
+  activity:     [],
+  track(text) {
+    this.activity.unshift({ at: Date.now(), text });
+    if (this.activity.length > 200) this.activity.length = 200;
+  },
+};
+const PAUSED_MESSAGE = 'New games are paused for a quick update. Please try again in a few minutes.';
 
 // ── Room helpers ─────────────────────────────────────────────────────────────
 function genCode() {
@@ -94,7 +112,65 @@ function scheduleCleanup(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
   if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
-  room.cleanupTimer = setTimeout(() => { delete rooms[roomCode]; }, 5 * 60 * 1000);
+  room.cleanupTimer = setTimeout(() => {
+    delete rooms[roomCode];
+    info.track(`Room ${roomCode} closed (everyone left)`);
+  }, 5 * 60 * 1000);
+}
+
+// Admin: send everyone back to the start page and delete the room
+function closeRoom(code, reason) {
+  const room = rooms[code];
+  if (!room) return;
+  for (const p of Object.values(room.players)) {
+    const sock = p.socketId && io.sockets.sockets.get(p.socketId);
+    if (!sock) continue;
+    sock.emit('room_closed', { reason });
+    sock.leave(code);
+    sock.roomCode    = null;
+    sock.playerColor = null;
+  }
+  if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
+  delete rooms[code];
+}
+
+// Admin: remove one player. Before the game their seat is freed; during a game
+// it is left open so someone else can take it (via the invite link).
+function kickPlayer(code, color) {
+  const room  = rooms[code];
+  const entry = room && Object.entries(room.players).find(([, p]) => p.color === color);
+  if (!entry) return false;
+  const [token, player] = entry;
+
+  const sock = player.socketId && io.sockets.sockets.get(player.socketId);
+  if (sock) {
+    sock.emit('kicked', { reason: 'You were removed from this room by the admin.' });
+    sock.leave(code);
+    sock.roomCode    = null;
+    sock.playerColor = null;
+  }
+
+  if (!room.banned) room.banned = new Set();
+  room.banned.add(token);
+  delete room.players[token];
+  if (room.started) {
+    player.connected = false;
+    player.socketId  = null;
+    room.players[`open-${crypto.randomBytes(6).toString('hex')}`] = player;
+    addLog(room, `${color} was removed by the admin`);
+  }
+
+  if (room.hostColor === color) {
+    const newHost = Object.values(room.players).find(p => p.connected);
+    if (newHost) {
+      room.hostColor    = newHost.color;
+      room.hostSocketId = newHost.socketId;
+      io.to(newHost.socketId).emit('promoted_host');
+    }
+  }
+  broadcastPlayersUpdate(code);
+  if (room.started) broadcast(code);
+  return true;
 }
 
 function cancelCleanup(roomCode) {
@@ -134,6 +210,8 @@ function handleAction(socket, action) {
     if (Board.checkWinner(board) && !room.winLogged) {
       room.winLogged = true;
       log(`${board.gameState.winner} won the game!`);
+      info.counters.gamesFinished++;
+      info.track(`${board.gameState.winner} won in room ${socket.roomCode}`);
     }
   };
 
@@ -365,8 +443,12 @@ function handleAction(socket, action) {
 // ── Socket.io ────────────────────────────────────────────────────────────────
 app.use(express.static('public'));
 
+setupAdmin({ app, io, rooms, info, Board, helpers: { closeRoom, kickPlayer } });
+
 io.on('connection', (socket) => {
   console.log(`client connected    [${socket.id}]`);
+  info.peakOnline = Math.max(info.peakOnline, io.engine.clientsCount);
+  if (info.announcement) socket.emit('announcement', { text: info.announcement });
 
   // Puts this socket in the given seat. If the seat was open in another tab,
   // that tab is told and dropped, so one seat never has two sockets.
@@ -402,6 +484,7 @@ io.on('connection', (socket) => {
   }
 
   socket.on('create_room', (payload = {}) => {
+    if (info.maintenance) return socket.emit('room_error', { reason: PAUSED_MESSAGE });
     const token = validToken(payload.token) ? payload.token : socket.id;
     const code  = genCode();
     const color = 'red';
@@ -414,7 +497,10 @@ io.on('connection', (socket) => {
       started:      false,
       cleanupTimer: null,
       winTarget:    10,
+      createdAt:    Date.now(),
     };
+    info.counters.roomsCreated++;
+    info.track(`Room ${code} created`);
     takeSeat(code, token, rooms[code].players[token], false);
   });
 
@@ -423,6 +509,9 @@ io.on('connection', (socket) => {
     const token = validToken(payload.token) ? payload.token : socket.id;
     const room  = rooms[code];
     if (!room) return socket.emit('room_error', { reason: `Room "${code}" not found`, notFound: true });
+    if (room.banned && room.banned.has(token)) {
+      return socket.emit('room_error', { reason: 'You were removed from this room.', notFound: true });
+    }
 
     // Same tab coming back (refresh, lost connection): give the seat back
     const mine = room.players[token];
@@ -454,6 +543,7 @@ io.on('connection', (socket) => {
     if (socket.playerColor !== room.hostColor) return socket.emit('room_error', { reason: 'Only the host can start the game' });
     const colors = connectedColors(room);
     if (colors.length < 2)                     return socket.emit('room_error', { reason: 'Need at least 2 players to start' });
+    if (info.maintenance)                      return socket.emit('room_error', { reason: PAUSED_MESSAGE });
 
     const t = parseInt(payload.winTarget, 10);
     room.winTarget = [3,5,8,10].includes(t) ? t : 10;
@@ -462,7 +552,10 @@ io.on('connection', (socket) => {
     room.board     = freshBoard(room, false);
     room.rollLog   = [];
     room.started   = true;
+    room.startedAt = Date.now();
     room.winLogged = false;
+    info.counters.gamesStarted++;
+    info.track(`Game started in room ${socket.roomCode} (${Board.MAPS[room.mapId].name}, ${colors.length} players)`);
     broadcast(socket.roomCode);
   });
 

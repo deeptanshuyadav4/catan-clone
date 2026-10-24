@@ -1099,6 +1099,38 @@
     .seat-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.6); }
     #lobby-error.info { color: rgba(255, 255, 255, 0.75); }
 
+    /* Admin announcement banner */
+    #announce-bar {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(720px, calc(100vw - 24px));
+      align-items: center;
+      gap: 10px;
+      background: #ffcf3f;
+      color: #3d3424;
+      font-weight: 800;
+      font-size: 0.95rem;
+      padding: 10px 12px 10px 16px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      z-index: 500;
+    }
+    #announce-bar.show { display: flex; }
+    #announce-close {
+      border: none;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      font-size: 1.1rem;
+      font-weight: 900;
+      cursor: pointer;
+      color: #3d3424;
+    }
+
     /* Player who lost connection */
     .player-panel.offline .avatar { filter: grayscale(1); opacity: 0.55; }
     .pc-offline {
@@ -1321,6 +1353,13 @@
       <div id="steal-row"></div>
       <button id="steal-cancel-btn">Pick a different tile</button>
     </div>
+  </div>
+
+  <!-- Announcement from the admin, shown to everyone -->
+  <div id="announce-bar">
+    <span>📢</span>
+    <span id="announce-text"></span>
+    <button id="announce-close" title="Hide">×</button>
   </div>
 
   <!-- END OF GAME (hidden until someone wins) -->
@@ -1711,6 +1750,28 @@
         lobbyOverlay.style.display = '';
         setLobbyError('This game is now open in another tab.');
       });
+
+      // The admin removed us, or closed the whole room: back to the start page
+      function leaveRoom(message) {
+        wantRoom = null;
+        roomCode = null;
+        board    = null;
+        history.replaceState(null, '', location.pathname);
+        document.getElementById('lobby-room-panel').style.display = 'none';
+        document.getElementById('winner-overlay').style.display = 'none';
+        lobbyOverlay.style.display = '';
+        setLobbyError(message);
+      }
+      socket.on('kicked',      ({ reason }) => leaveRoom(reason));
+      socket.on('room_closed', ({ reason }) => leaveRoom(reason));
+
+      // Admin announcement: banner at the top until hidden or cleared
+      socket.on('announcement', ({ text }) => {
+        document.getElementById('announce-text').textContent = text || '';
+        document.getElementById('announce-bar').classList.toggle('show', !!text);
+      });
+      document.getElementById('announce-close').addEventListener('click', () =>
+        document.getElementById('announce-bar').classList.remove('show'));
 
       // ----- Lobby button handlers -----
       document.getElementById('create-room-btn').addEventListener('click', () => {

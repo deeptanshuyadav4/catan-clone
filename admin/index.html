@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Admin · Catan Clone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ocean: #1f6db6;
+      --cream: #f5f0e3;
+      --cream-dark: #e1d5b6;
+      --ink: #3d3424;
+      --muted: #8a7d62;
+      --green: #2fb344;
+      --red: #d64545;
+    }
+    body {
+      background: var(--ocean);
+      color: var(--ink);
+      font-family: 'Nunito', Arial, sans-serif;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .hidden { display: none !important; }
+
+    .panel {
+      background: var(--cream);
+      border-radius: 10px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+      padding: 16px 18px;
+    }
+    h2 { font-size: 1.05rem; font-weight: 900; margin-bottom: 10px; }
+    button {
+      font: inherit;
+      font-weight: 800;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--cream-dark);
+    }
+    button:hover { filter: brightness(0.97); }
+    button.primary { background: var(--green); color: #fff; border-color: var(--green); }
+    button.danger  { background: #fff; color: var(--red); border-color: #f0c4c4; }
+    button.danger.armed { background: var(--red); color: #fff; }
+    input[type=text], input[type=password] {
+      font: inherit;
+      border: 1px solid var(--cream-dark);
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    /* Login */
+    #login-view { display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+    #login-box { width: min(360px, 100%); text-align: center; }
+    #login-box h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    #login-box p { color: var(--muted); margin-bottom: 16px; font-size: 0.9rem; }
+    #login-form { display: flex; flex-direction: column; gap: 10px; }
+    #login-error { color: var(--red); font-size: 0.85rem; min-height: 1.2em; }
+
+    /* Dashboard */
+    #dash { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    header { display: flex; align-items: center; gap: 12px; color: #fff; }
+    header h1 { font-size: 1.4rem; font-weight: 900; flex: 1; }
+    header a { color: #fff; font-weight: 800; }
+    #updated { font-size: 0.78rem; opacity: 0.8; }
+
+    #tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .tile { padding: 12px 14px; }
+    .tile .num { font-size: 1.7rem; font-weight: 900; line-height: 1.1; }
+    .tile .label { font-size: 0.78rem; color: var(--muted); font-weight: 700; }
+
+    #controls { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+    #announce-form { display: flex; gap: 8px; }
+    #announce-text { flex: 1; min-width: 0; }
+    .hint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+    #maint-row { display: flex; align-items: center; gap: 12px; }
+    .switch { position: relative; width: 52px; height: 28px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: #cfc6b0; border-radius: 28px; transition: background 0.15s;
+    }
+    .slider::before {
+      content: ''; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%; transition: transform 0.15s;
+    }
+    .switch input:checked + .slider { background: #e69a1f; }
+    .switch input:checked + .slider::before { transform: translateX(24px); }
+    #maint-state { font-weight: 800; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; padding: 6px 8px; }
+    td { padding: 9px 8px; border-top: 1px solid var(--cream-dark); vertical-align: middle; }
+    .code { font-family: monospace; font-size: 1rem; font-weight: 900; letter-spacing: 1px; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 0.75rem; font-weight: 900; }
+    .badge.lobby    { background: #e7e1d0; color: #6b5f45; }
+    .badge.playing  { background: #d4f2da; color: #1d7a2c; }
+    .badge.finished { background: #e3e6f7; color: #3a4aa0; }
+    .players { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pl {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #fff; border: 1px solid var(--cream-dark); border-radius: 14px;
+      padding: 2px 4px 2px 6px; font-weight: 700; font-size: 0.82rem;
+    }
+    .pl.off { opacity: 0.5; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(0, 0, 0, 0.3); }
+    .pl button { padding: 0 6px; font-size: 0.75rem; border-radius: 10px; line-height: 1.5; }
+    #no-rooms { color: var(--muted); padding: 10px 8px; }
+
+    #activity { max-height: 320px; overflow-y: auto; font-size: 0.88rem; }
+    #activity div { padding: 4px 0; border-top: 1px solid var(--cream-dark); }
+    #activity time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; }
+
+    @media (max-width: 760px) {
+      body { padding: 10px; }
+      #controls { grid-template-columns: 1fr; }
+      .table-wrap { overflow-x: auto; }
+      table { min-width: 640px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Admin switched off on this server -->
+  <div id="off-view" class="hidden" style="display:flex; justify-content:center; padding-top:15vh;">
+    <div class="panel" style="max-width:460px;">
+      <h2>Admin is turned off</h2>
+      <p>Set an <b>ADMIN_PASSWORD</b> environment variable on the server and restart it, then come back here.</p>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div id="login-view" class="hidden">
+    <div id="login-box" class="panel">
+      <h1>Admin</h1>
+      <p>Catan Clone control panel</p>
+      <form id="login-form">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Log in</button>
+        <div id="login-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dash" class="hidden">
+    <header>
+      <h1>Admin</h1>
+      <span id="updated"></span>
+      <a href="/" target="_blank" rel="noopener">Open the game ↗</a>
+      <button id="logout-btn">Log out</button>
+    </header>
+
+    <div id="tiles"></div>
+
+    <div id="controls">
+      <div class="panel">
+        <h2>Announcement</h2>
+        <form id="announce-form">
+          <input id="announce-text" type="text" maxlength="200" placeholder="Shown at the top of everyone's screen, e.g. Server update in 5 minutes">
+          <button class="primary" type="submit">Send</button>
+          <button id="announce-clear" type="button">Clear</button>
+        </form>
+        <div class="hint" id="announce-current">No announcement showing.</div>
+      </div>
+      <div class="panel">
+        <h2>Maintenance mode</h2>
+        <div id="maint-row">
+          <label class="switch"><input id="maint-toggle" type="checkbox"><span class="slider"></span></label>
+          <span id="maint-state">Off</span>
+        </div>
+        <div class="hint">When on, nobody can create or start a new game. Games already running carry on. Turn it on before pushing an update.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Rooms</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Room</th><th>Status</th><th>Map</th><th>Players</th><th>Turn</th><th>Time</th><th></th></tr>
+          </thead>
+          <tbody id="rooms-body"></tbody>
+        </table>
+      </div>
+      <div id="no-rooms" class="hidden">No rooms right now.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Activity</h2>
+      <div id="activity"></div>
+      <div class="hint">Numbers and activity reset when the server restarts.</div>
+    </div>
+  </div>
+
+  <script>
+    const COLORS = { red: '#d33', blue: '#36c', white: '#eee', orange: '#f80' };
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const $   = id => document.getElementById(id);
+
+    function show(view) {
+      for (const v of ['off-view', 'login-view', 'dash']) $(v).classList.toggle('hidden', v !== view);
+    }
+
+    async function api(path, body) {
+      const res = await fetch(`/admin/api/${path}`, body === undefined
+        ? { credentials: 'same-origin' }
+        : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { show('login-view'); throw new Error(data.error || 'Please log in'); }
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      return data;
+    }
+
+    function duration(ms) {
+      const s = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+      return h ? `${h}h ${m}m` : `${m}m ${String(sec).padStart(2, '0')}s`;
+    }
+
+    function el(tag, props = {}, children = []) {
+      const node = document.createElement(tag);
+      Object.assign(node, props);
+      for (const c of [].concat(children)) node.append(c);
+      return node;
+    }
+
+    // Two clicks to do anything destructive: first click arms the button for 3 seconds
+    function confirmButton(label, onConfirm) {
+      const btn = el('button', { className: 'danger', textContent: label });
+      let timer = null;
+      btn.addEventListener('click', () => {
+        if (!btn.classList.contains('armed')) {
+          btn.classList.add('armed');
+          btn.textContent = 'Sure?';
+          timer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = label; }, 3000);
+          return;
+        }
+        clearTimeout(timer);
+        btn.disabled = true;
+        onConfirm().catch(e => alert(e.message)).finally(refresh);
+      });
+      return btn;
+    }
+
+    function render(data) {
+      $('updated').textContent = `Updated ${new Date(data.now).toLocaleTimeString()}`;
+
+      const playing = data.rooms.filter(r => r.status === 'playing').length;
+      const tiles = [
+        [data.online, 'People on the site'],
+        [data.seated, 'Players in rooms'],
+        [playing, 'Games running'],
+        [data.rooms.length, 'Open rooms'],
+        [data.counters.gamesStarted, 'Games started'],
+        [data.counters.gamesFinished, 'Games finished'],
+        [data.peakOnline, 'Most online at once'],
+        [duration(data.uptimeMs), 'Server up for'],
+        [`${data.memoryMb} MB`, 'Memory used'],
+      ];
+      $('tiles').replaceChildren(...tiles.map(([num, label]) =>
+        el('div', { className: 'panel tile' }, [el('div', { className: 'num', textContent: num }), el('div', { className: 'label', textContent: label })])));
+
+      $('announce-current').textContent = data.announcement
+        ? `Showing now: "${data.announcement}"`
+        : 'No announcement showing.';
+      $('maint-toggle').checked = data.maintenance;
+      $('maint-state').textContent = data.maintenance ? 'On: new games paused' : 'Off';
+
+      const rows = data.rooms.map(r => {
+        const players = el('div', { className: 'players' }, r.players.map(p => {
+          const chip = el('span', { className: 'pl' + (p.connected ? '' : ' off'), title: p.connected ? 'online' : 'offline' }, [
+            el('span', { className: 'dot', style: `background:${COLORS[p.color]}` }),
+            `${cap(p.color)}${r.status !== 'lobby' ? ` · ${p.vp} VP · ${p.cards} cards` : ''}${p.color === r.host ? ' (host)' : ''}`,
+          ]);
+          chip.append(confirmButton('×', () => api(`rooms/${r.code}/kick`, { color: p.color })));
+          return chip;
+        }));
+        const since = r.startedAt || r.createdAt;
+        const turnCell = r.status === 'playing' ? cap(r.turn) : r.status === 'finished' ? `${cap(r.winner)} won` : '-';
+        return el('tr', {}, [
+          el('td', { className: 'code', textContent: r.code }),
+          el('td', {}, el('span', { className: `badge ${r.status}`, textContent: r.status })),
+          el('td', { textContent: r.status === 'lobby' ? '-' : `${r.map} (${r.winTarget} pts)` }),
+          el('td', {}, players),
+          el('td', { textContent: turnCell }),
+          el('td', { textContent: duration(data.now - since) }),
+          el('td', {}, confirmButton('Close room', () => api(`rooms/${r.code}/close`, {}))),
+        ]);
+      });
+      $('rooms-body').replaceChildren(...rows);
+      $('no-rooms').classList.toggle('hidden', rows.length > 0);
+
+      $('activity').replaceChildren(...data.activity.map(a =>
+        el('div', {}, [el('time', { textContent: new Date(a.at).toLocaleTimeString() }), a.text])));
+    }
+
+    async function refresh() {
+      try { render(await api('overview')); } catch (e) { /* login view already shown on 401 */ }
+    }
+
+    $('login-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      $('login-error').textContent = '';
+      try {
+        await api('login', { password: $('password').value });
+        $('password').value = '';
+        show('dash');
+        refresh();
+      } catch (err) {
+        $('login-error').textContent = err.message;
+      }
+    });
+
+    $('logout-btn').addEventListener('click', async () => {
+      await api('logout', {}).catch(() => {});
+      show('login-view');
+    });
+
+    $('announce-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const text = $('announce-text').value.trim();
+      if (!text) return;
+      await api('announce', { text }).catch(err => alert(err.message));
+      $('announce-text').value = '';
+      refresh();
+    });
+    $('announce-clear').addEventListener('click', async () => {
+      await api('announce', { text: '' }).catch(err => alert(err.message));
+      refresh();
+    });
+
+    $('maint-toggle').addEventListener('change', async e => {
+      await api('maintenance', { on: e.target.checked }).catch(err => alert(err.message));
+      refresh();
+    });
+
+    (async function start() {
+      const status = await api('status').catch(() => ({ enabled: false }));
+      if (!status.enabled) return show('off-view');
+      if (!status.loggedIn) return show('login-view');
+      show('dash');
+      refresh();
+    })();
+    // Refresh every 5 s, but not while a button is waiting for its "Sure?" click
+    setInterval(() => {
+      if ($('dash').classList.contains('hidden') || document.querySelector('button.armed')) return;
+      refresh();
+    }, 5000);
+  </script>
+</body>
+</html>

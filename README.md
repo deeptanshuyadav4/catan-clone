@@ -60,11 +60,22 @@ Then open http://localhost:3000. To try multiplayer on your own, open a second t
 
 Friends on the same Wi-Fi can join at `http://<your computer's IP>:3000`. The server runs on port 3000 unless you set the `PORT` environment variable.
 
+### Admin page
+
+There's a control panel at `/admin` showing who's online, every room and game, and buttons to close a room, remove a player, send an announcement banner to everyone, or pause new games before an update. It's off unless you set a password:
+
+```bash
+ADMIN_PASSWORD=pick-something-long npm start
+```
+
+(On Windows PowerShell: `$env:ADMIN_PASSWORD="pick-something-long"; npm start`.) Everything on it resets when the server restarts.
+
 ## How it works
 
 The server holds the game state. When you click something, the browser sends an action like `place_road` over Socket.io. The server checks it against the rules, updates the board and sends the new state to everyone in the room. The rules live in `public/board-core.js`, which runs on both the server and the browser, so you see an error right away if a move isn't allowed.
 
 - `server.js`: Express and Socket.io server, rooms, lobby, and handling every game action
+- `admin.js` and `admin/index.html`: the password-protected admin page
 - `public/board-core.js`: the maps, board generation and the game rules
 - `public/render.js`: draws the board, ports and pieces as SVG
 - `public/index.html`: page layout, styles and the client code
